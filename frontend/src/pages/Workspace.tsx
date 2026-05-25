@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, Lock, Settings as SettingsIcon, SquareTerminal, Table2, X } from "lucide-react"
+import { ChevronLeft, Lock, LogOut, Settings as SettingsIcon, SquareTerminal, Table2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -10,9 +10,11 @@ import { StructureView } from "@/pages/StructureView"
 import { SqlEditor } from "@/pages/SqlEditor"
 import { Settings } from "@/pages/Settings"
 import { DestructiveOpModal } from "@/components/DestructiveOpModal"
-import { TransactionBar } from "@/components/TransactionBar"
+import { TransactionBar, type TxEntry } from "@/components/TransactionBar"
 import { ModeToggle } from "@/components/mode-toggle"
+import { Logo } from "@/components/Logo"
 import { cn } from "@/lib/utils"
+import { useShortcuts } from "@/lib/useShortcuts"
 import { api } from "@/lib/api"
 import type { AppSettings, ConnectionMeta, TableSummary } from "@/lib/types"
 
@@ -56,8 +58,9 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
     return api
       .listDatabases()
       .then((dbs) => {
-        setDatabases(dbs)
-        setDatabase((cur) => cur || dbs[0] || "")
+        const list = dbs ?? []
+        setDatabases(list)
+        setDatabase((cur) => cur || list[0] || "")
       })
       .catch((e) => toast.error("Failed to list databases", { description: String(e) }))
   }
@@ -66,6 +69,7 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
   useEffect(() => { refreshDatabases() }, [])
 
   const [dataVersion, setDataVersion] = useState(0)
+  const [schema, setSchema] = useState<Record<string, string[]>>({})
 
   // Load tables when the database changes or after a mutation (refreshes counts).
   useEffect(() => {
@@ -73,9 +77,22 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
     setLoadingTables(true)
     api
       .listTables(database)
-      .then(setTables)
+      .then((t) => setTables(t ?? []))
       .catch((e) => toast.error("Failed to list tables", { description: String(e) }))
       .finally(() => setLoadingTables(false))
+  }, [database, dataVersion])
+
+  // Load table→columns for SQL-editor autocomplete (one round trip per
+  // database; refreshed after mutations in case DDL changed the schema).
+  useEffect(() => {
+    if (!database) {
+      setSchema({})
+      return
+    }
+    api
+      .schemaColumns(database)
+      .then((s) => setSchema(s ?? {}))
+      .catch(() => setSchema({}))
   }, [database, dataVersion])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -88,7 +105,8 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
 
   const [serverVersion, setServerVersion] = useState("")
   const [pending, setPending] = useState<PendingDestructive | null>(null)
-  const [txPending, setTxPending] = useState(0)
+  const [txEntries, setTxEntries] = useState<TxEntry[]>([])
+  let txSeq = 0
 
   // Load persisted settings and server version from the backend.
   useEffect(() => {
@@ -113,14 +131,15 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
   const active = tabs.find((t) => t.id === activeId) ?? null
   const activeTable = active?.kind === "table" ? active.table : null
 
-  function openTable(table: string) {
+  function openTable(table: string, sub: "data" | "structure" = "data") {
     const existing = tabs.find((t) => t.kind === "table" && t.table === table)
     if (existing) {
+      if (existing.kind === "table" && existing.sub !== sub) setSub(existing.id, sub)
       setDbActive(database, existing.id)
       return
     }
     const id = `table:${table}`
-    setDbTabs(database, (prev) => [...prev, { id, kind: "table", table, sub: "data" }])
+    setDbTabs(database, (prev) => [...prev, { id, kind: "table", table, sub }])
     setDbActive(database, id)
   }
 
@@ -148,9 +167,22 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
     )
   }
 
-  function handleMutate() {
+  // Move the active tab by `dir` (wrapping), for ⌘⇧[ / ⌘⇧].
+  function cycleTab(dir: 1 | -1) {
+    if (tabs.length < 2) return
+    const i = tabs.findIndex((t) => t.id === activeId)
+    const next = (Math.max(i, 0) + dir + tabs.length) % tabs.length
+    setDbActive(database, tabs[next].id)
+  }
+  // Jump to the nth (1-based) tab, for ⌘1–⌘9.
+  function gotoTab(n: number) {
+    const t = tabs[n - 1]
+    if (t) setDbActive(database, t.id)
+  }
+
+  function handleMutate(label = "Statement executed") {
     if (settings.default_transaction_mode === "explicit_commit") {
-      setTxPending((n) => n + 1)
+      setTxEntries((prev) => [...prev, { id: txSeq++, at: new Date(), label }])
     }
   }
 
@@ -201,25 +233,53 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
     })
   }
 
+  // App-level shortcuts (TablePlus-style). Table-/editor-specific bindings live
+  // in their own components, scoped to the visible tab.
+  useShortcuts([
+    { key: "t", meta: true, handler: openSql },
+    { key: "w", meta: true, handler: () => activeId && closeTab(activeId) },
+    { code: "BracketRight", meta: true, shift: true, handler: () => cycleTab(1) },
+    { code: "BracketLeft", meta: true, shift: true, handler: () => cycleTab(-1) },
+    ...Array.from({ length: 9 }, (_, i) => ({
+      key: String(i + 1),
+      meta: true,
+      handler: () => gotoTab(i + 1),
+    })),
+  ])
+
   return (
     <div className="flex h-screen flex-col">
       {/* Top bar */}
       <header className="flex h-10 items-center gap-2 border-b px-2">
-        <Button variant="ghost" size="icon" className="size-7" onClick={onClose} title="Connections">
+        <Button variant="ghost" size="icon" className="size-7" onClick={async () => { if (txEntries.length > 0) await api.rollbackTransaction().catch(() => {}); onClose() }} title="All connections">
           <ChevronLeft className="size-4" />
         </Button>
+        <Logo className="size-6 rounded" />
         <span className="text-sm font-semibold">{connection.name}</span>
-        <span className="text-muted-foreground text-xs">
-          {connection.username}@{connection.host}:{connection.port}
-        </span>
+        {connection.label && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+            style={{
+              background: connection.label_color ? connection.label_color + "22" : "#6b728022",
+              color: connection.label_color || "#6b7280",
+            }}
+          >
+            <span
+              className="size-1.5 rounded-full"
+              style={{ background: connection.label_color || "#6b7280" }}
+            />
+            {connection.label}
+          </span>
+        )}
         {readOnly && (
           <Badge variant="secondary" className="h-4 gap-1 px-1.5 text-[10px]">
             <Lock className="size-2.5" /> read-only
           </Badge>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={openSql}>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={openSql} title="New Query (⌘T)">
             <SquareTerminal className="size-3.5" /> New Query
+            <span className="ml-0.5 opacity-60">⌘T</span>
           </Button>
           <Button
             variant="ghost"
@@ -228,6 +288,18 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
             onClick={() => setSettingsOpen(true)}
           >
             <SettingsIcon className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive size-7"
+            onClick={async () => {
+              if (txEntries.length > 0) await api.rollbackTransaction().catch(() => {})
+              onClose()
+            }}
+            title="Disconnect"
+          >
+            <LogOut className="size-4" />
           </Button>
           <ModeToggle />
         </div>
@@ -302,34 +374,63 @@ export function Workspace({ connection, onClose }: WorkspaceProps) {
               </div>
             )}
 
-            {/* Content */}
+            {/* Content — every tab stays mounted so its state (filters, paging,
+                editor queries) survives switching tabs; only the active one is
+                shown. Inactive tabs are hidden via CSS, not unmounted. */}
             <div className="min-h-0 flex-1">
-              {active?.kind === "table" && active.sub === "data" && (
-                <TableView
-                  database={database}
-                  table={active.table}
-                  dataVersion={dataVersion}
-                  confirmDestructive={confirmDestructive}
-                  onMutate={handleMutate}
-                />
-              )}
-              {active?.kind === "table" && active.sub === "structure" && (
-                <StructureView
-                  database={database}
-                  table={active.table}
-                  onDestructive={runRawSQL}
-                />
-              )}
-              {active?.kind === "sql" && (
-                <SqlEditor database={database} onMutate={handleMutate} onDestructive={runRawSQL} />
-              )}
+              {tabs.map((t) => (
+                <div key={t.id} className={cn("h-full", t.id !== activeId && "hidden")}>
+                  {t.kind === "table" ? (
+                    <>
+                      <div className={cn("h-full", t.sub !== "data" && "hidden")}>
+                        <TableView
+                          database={database}
+                          table={t.table}
+                          active={t.id === activeId && t.sub === "data"}
+                          totalRows={tables.find((tb) => tb.name === t.table)?.row_count ?? 0}
+                          dataVersion={dataVersion}
+                          confirmDestructive={confirmDestructive}
+                          onMutate={handleMutate}
+                        />
+                      </div>
+                      <div className={cn("h-full", t.sub !== "structure" && "hidden")}>
+                        <StructureView
+                          database={database}
+                          table={t.table}
+                          onDestructive={runRawSQL}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <SqlEditor database={database} schema={schema} onMutate={handleMutate} onDestructive={runRawSQL} />
+                  )}
+                </div>
+              ))}
             </div>
 
-            {txPending > 0 && (
+            {txEntries.length > 0 && (
               <TransactionBar
-                pendingStatements={txPending}
-                onCommit={() => setTxPending(0)}
-                onRollback={() => setTxPending(0)}
+                entries={txEntries}
+                onCommit={async () => {
+                  try {
+                    await api.commitTransaction()
+                    setTxEntries([])
+                    afterMutation()
+                    toast.success("Transaction committed")
+                  } catch (e) {
+                    toast.error("Commit failed", { description: String(e) })
+                  }
+                }}
+                onRollback={async () => {
+                  try {
+                    await api.rollbackTransaction()
+                    setTxEntries([])
+                    afterMutation()
+                    toast.success("Transaction rolled back")
+                  } catch (e) {
+                    toast.error("Rollback failed", { description: String(e) })
+                  }
+                }}
               />
             )}
           </div>

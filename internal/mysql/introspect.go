@@ -73,6 +73,34 @@ func (c *Conn) ListTables(database string) ([]TableSummary, error) {
 	return out, rows.Err()
 }
 
+// SchemaColumns returns every base-table column in a database keyed by table
+// name (ordinal order preserved) in a single round trip. It backs SQL-editor
+// autocomplete, where one query per table would be too chatty.
+func (c *Conn) SchemaColumns(database string) (map[string][]string, error) {
+	ctx, cancel := ctx5()
+	defer cancel()
+	const q = `
+		SELECT TABLE_NAME, COLUMN_NAME
+		FROM INFORMATION_SCHEMA.COLUMNS
+		WHERE TABLE_SCHEMA = ?
+		ORDER BY TABLE_NAME, ORDINAL_POSITION`
+	rows, err := c.DB.QueryContext(ctx, q, database)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string][]string{}
+	for rows.Next() {
+		var table, column string
+		if err := rows.Scan(&table, &column); err != nil {
+			return nil, err
+		}
+		out[table] = append(out[table], column)
+	}
+	return out, rows.Err()
+}
+
 // DescribeTable returns columns, indexes, and the primary key for a table.
 func (c *Conn) DescribeTable(database, table string) (TableStructure, error) {
 	var ts TableStructure

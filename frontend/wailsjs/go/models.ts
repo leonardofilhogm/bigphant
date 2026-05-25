@@ -43,6 +43,7 @@ export namespace connections {
 	    username: string;
 	    default_database: string;
 	    read_only: boolean;
+	    transaction_mode: string;
 	    label: string;
 	    label_color: string;
 	    folder: string;
@@ -61,6 +62,7 @@ export namespace connections {
 	        this.username = source["username"];
 	        this.default_database = source["default_database"];
 	        this.read_only = source["read_only"];
+	        this.transaction_mode = source["transaction_mode"];
 	        this.label = source["label"];
 	        this.label_color = source["label_color"];
 	        this.folder = source["folder"];

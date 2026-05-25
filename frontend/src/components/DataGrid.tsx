@@ -11,6 +11,9 @@ interface DataGridProps {
   rows: unknown[][]
   selected: Set<number>
   activeRow: number | null
+  // Row indices that are staged (unsaved) inserts — rendered tinted, marked
+  // with a dot instead of a select checkbox.
+  pending?: Set<number>
   onToggleRow: (index: number) => void
   onToggleAll: () => void
   onRowClick: (index: number) => void
@@ -23,6 +26,7 @@ export function DataGrid({
   rows,
   selected,
   activeRow,
+  pending,
   onToggleRow,
   onToggleAll,
   onRowClick,
@@ -35,7 +39,9 @@ export function DataGrid({
     .map((c, i) => ({ col: c, index: i }))
     .filter(({ col }) => visible.has(col.name))
 
-  const allSelected = rows.length > 0 && selected.size === rows.length
+  // Only real (non-pending) rows are selectable.
+  const selectableCount = rows.length - (pending?.size ?? 0)
+  const allSelected = selectableCount > 0 && selected.size === selectableCount
 
   function commit() {
     if (!editing) return
@@ -66,28 +72,41 @@ export function DataGrid({
           {rows.map((row, rowIndex) => {
             const isActive = activeRow === rowIndex
             const isSelected = selected.has(rowIndex)
+            const isPending = pending?.has(rowIndex) ?? false
             return (
               <tr
                 key={rowIndex}
                 onClick={() => onRowClick(rowIndex)}
                 className={cn(
                   "cursor-default",
-                  isActive
-                    ? "bg-primary/10"
-                    : isSelected
-                      ? "bg-accent"
-                      : "hover:bg-muted/50"
+                  isPending
+                    ? "bg-emerald-500/10 hover:bg-emerald-500/20"
+                    : isActive
+                      ? "bg-primary/10"
+                      : isSelected
+                        ? "bg-accent"
+                        : "hover:bg-muted/50"
                 )}
               >
                 <td
-                  className="bg-background sticky left-0 z-10 border-b border-r px-2 py-1 text-center"
+                  className={cn(
+                    "sticky left-0 z-10 border-b border-r px-2 py-1 text-center",
+                    isPending ? "bg-emerald-50 dark:bg-emerald-950/60" : "bg-background"
+                  )}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleRow(rowIndex)}
-                    aria-label={`Select row ${rowIndex + 1}`}
-                  />
+                  {isPending ? (
+                    <span
+                      className="inline-block size-2 rounded-full bg-emerald-500"
+                      title="Unsaved new row"
+                    />
+                  ) : (
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleRow(rowIndex)}
+                      aria-label={`Select row ${rowIndex + 1}`}
+                    />
+                  )}
                 </td>
                 {shown.map(({ col, index }) => {
                   const value = row[index]

@@ -2,6 +2,7 @@
 // place and stay decoupled from the wailsjs path. Types are structurally
 // compatible with the hand-written ones in ./types.
 import {
+  CommitTransaction,
   CreateConnection,
   DeleteConnection,
   DeleteRows,
@@ -14,6 +15,8 @@ import {
   ListDatabases,
   ListTables,
   OpenConnection,
+  RollbackTransaction,
+  SchemaColumns,
   ServerVersion,
   TestConnection,
   UpdateConnection,
@@ -51,6 +54,8 @@ export const api = {
   listTables: (database: string): Promise<TableSummary[]> => ListTables(database),
   describeTable: (database: string, table: string): Promise<TableStructure> =>
     DescribeTable(database, table),
+  schemaColumns: (database: string): Promise<Record<string, string[]>> =>
+    SchemaColumns(database),
   fetchRows: (req: FetchRowsRequest): Promise<ResultSet> =>
     FetchRows(sqlbuilder.FetchRowsRequest.createFrom(req)),
 
@@ -70,6 +75,8 @@ export const api = {
   executeRaw: (query: string, options: ExecOptions): Promise<RawResult> =>
     ExecuteRaw(query, options),
 
+  commitTransaction: (): Promise<void> => CommitTransaction(),
+  rollbackTransaction: (): Promise<void> => RollbackTransaction(),
   serverVersion: (): Promise<string> => ServerVersion(),
   getSettings: (): Promise<AppSettings> => GetSettings(),
   updateSettings: (s: AppSettings): Promise<void> => UpdateSettings(s),

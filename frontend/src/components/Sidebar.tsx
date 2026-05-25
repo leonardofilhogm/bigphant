@@ -34,7 +34,7 @@ interface SidebarProps {
   tables: TableSummary[]
   loadingTables: boolean
   activeTable: string | null
-  onOpenTable: (table: string) => void
+  onOpenTable: (table: string, sub?: "data" | "structure") => void
   onDestructive: (sql: string) => void
 }
 
@@ -50,7 +50,7 @@ export function Sidebar({
   onDestructive,
 }: SidebarProps) {
   const [query, setQuery] = useState("")
-  const filtered = tables.filter((t) =>
+  const filtered = (tables ?? []).filter((t) =>
     t.name.toLowerCase().includes(query.toLowerCase())
   )
 
@@ -60,7 +60,7 @@ export function Sidebar({
   const [creating, setCreating] = useState(false)
   const createInputRef = useRef<HTMLInputElement>(null)
 
-  const filteredDbs = databases.filter((db) =>
+  const filteredDbs = (databases ?? []).filter((db) =>
     db.toLowerCase().includes(pickerSearch.toLowerCase())
   )
 
@@ -217,7 +217,7 @@ export function Sidebar({
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-44">
                   <ContextMenuItem onClick={() => onOpenTable(t.name)}>Open</ContextMenuItem>
-                  <ContextMenuItem onClick={() => onOpenTable(t.name)}>Open Structure</ContextMenuItem>
+                  <ContextMenuItem onClick={() => onOpenTable(t.name, "structure")}>Open Structure</ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem
                     variant="destructive"

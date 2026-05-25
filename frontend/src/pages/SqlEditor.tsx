@@ -1,6 +1,9 @@
-import { useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { History, Loader2, Play, Plus, X } from "lucide-react"
 import { toast } from "sonner"
+import { useTheme } from "next-themes"
+import CodeMirror, { keymap, Prec } from "@uiw/react-codemirror"
+import { MySQL, sql } from "@codemirror/lang-sql"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -29,13 +32,15 @@ interface EditorTab {
 
 interface SqlEditorProps {
   database: string
-  onMutate: () => void
+  // table → column names, drives table/column autocomplete. Empty until loaded.
+  schema?: Record<string, string[]>
+  onMutate: (label?: string) => void
   onDestructive: (sql: string) => void
 }
 
 let tabSeq = 2
 
-export function SqlEditor({ database, onMutate, onDestructive }: SqlEditorProps) {
+export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEditorProps) {
   const [tabs, setTabs] = useState<EditorTab[]>([
     {
       id: 1,
@@ -49,8 +54,23 @@ export function SqlEditor({ database, onMutate, onDestructive }: SqlEditorProps)
   ])
   const [activeId, setActiveId] = useState(1)
   const [history, setHistory] = useState<string[]>([])
+  const { resolvedTheme } = useTheme()
 
   const active = tabs.find((t) => t.id === activeId)!
+
+  // CodeMirror reconfigures when `extensions` identity changes, so build it
+  // once and reach the latest `run` through a ref to avoid a stale closure in
+  // the ⌘↵ keymap.
+  const runRef = useRef<() => void>(() => {})
+  const extensions = useMemo(
+    () => [
+      sql({ dialect: MySQL, schema, upperCaseKeywords: true }),
+      Prec.highest(
+        keymap.of([{ key: "Mod-Enter", run: () => (runRef.current(), true) }])
+      ),
+    ],
+    [schema]
+  )
 
   function patch(patch: Partial<EditorTab>) {
     setTabs((prev) => prev.map((t) => (t.id === activeId ? { ...t, ...patch } : t)))
@@ -75,7 +95,7 @@ export function SqlEditor({ database, onMutate, onDestructive }: SqlEditorProps)
           patch({ result: raw.result_set, affected: null, duration: raw.duration_ms, loading: false })
         } else {
           patch({ result: null, affected: raw.affected_rows, duration: raw.duration_ms, loading: false })
-          onMutate()
+          onMutate(`${sql.trim().split(/\s+/)[0].toUpperCase()} — ${raw.affected_rows} row(s) affected`)
           toast.success(`${raw.affected_rows} row(s) affected`)
         }
       })
@@ -102,6 +122,8 @@ export function SqlEditor({ database, onMutate, onDestructive }: SqlEditorProps)
       return next
     })
   }
+
+  runRef.current = run
 
   return (
     <div className="flex h-full flex-col">
@@ -163,19 +185,17 @@ export function SqlEditor({ database, onMutate, onDestructive }: SqlEditorProps)
         </DropdownMenu>
       </div>
 
-      <textarea
-        value={active.sql}
-        onChange={(e) => patch({ sql: e.target.value })}
-        onKeyDown={(e) => {
-          if (e.metaKey && e.key === "Enter") {
-            e.preventDefault()
-            run()
-          }
-        }}
-        spellCheck={false}
-        placeholder="Write SQL, then press ⌘↵ to run"
-        className="placeholder:text-muted-foreground h-40 resize-none border-b bg-transparent p-3 font-mono text-xs outline-none"
-      />
+      <div className="border-b text-xs [&_.cm-editor]:bg-transparent [&_.cm-gutters]:bg-transparent">
+        <CodeMirror
+          value={active.sql}
+          height="160px"
+          theme={resolvedTheme === "dark" ? "dark" : "light"}
+          extensions={extensions}
+          onChange={(value) => patch({ sql: value })}
+          placeholder="Write SQL, then press ⌘↵ to run"
+          basicSetup={{ foldGutter: false }}
+        />
+      </div>
 
       <div className="min-h-0 flex-1 flex flex-col">
         {active.loading ? (

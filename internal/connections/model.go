@@ -33,6 +33,7 @@ type ConnectionMeta struct {
 	Username        string `json:"username"`
 	DefaultDatabase string `json:"default_database"`
 	ReadOnly        bool   `json:"read_only"`
+	TransactionMode string `json:"transaction_mode"`
 	Label           string `json:"label"`
 	LabelColor      string `json:"label_color"`
 	Folder          string `json:"folder"`
@@ -65,6 +66,7 @@ func (c Connection) Meta() ConnectionMeta {
 		Username:        c.Username,
 		DefaultDatabase: c.DefaultDatabase,
 		ReadOnly:        c.ReadOnly,
+		TransactionMode: c.TransactionMode,
 		Label:           c.Label,
 		LabelColor:      c.LabelColor,
 		Folder:          c.Folder,

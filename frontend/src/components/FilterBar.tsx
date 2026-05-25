@@ -1,6 +1,7 @@
 import { Plus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -37,7 +38,7 @@ export function FilterBar({ columns, filters, onChange, onApply }: FilterBarProp
     onChange(filters.map((f, idx) => (idx === i ? { ...f, ...patch } : f)))
   }
   function add() {
-    onChange([...filters, { column: columns[0]?.name ?? "", comparator: "=", value: "" }])
+    onChange([...filters, { column: columns[0]?.name ?? "", comparator: "=", value: "", enabled: true }])
   }
   function remove(i: number) {
     onChange(filters.filter((_, idx) => idx !== i))
@@ -52,8 +53,14 @@ export function FilterBar({ columns, filters, onChange, onApply }: FilterBarProp
       {filters.map((f, i) => (
         <div key={i} className="flex items-center gap-1">
           {i > 0 && <span className="text-muted-foreground px-1 text-[10px] font-medium">AND</span>}
+          <Checkbox
+            checked={f.enabled !== false}
+            onCheckedChange={(v) => update(i, { enabled: v === true })}
+            className="mr-0.5"
+            title={f.enabled !== false ? "Filter enabled" : "Filter disabled"}
+          />
           <Select value={f.column} onValueChange={(v) => update(i, { column: v })}>
-            <SelectTrigger className="h-7 w-36 text-xs">
+            <SelectTrigger size="sm" className="w-36 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -65,7 +72,7 @@ export function FilterBar({ columns, filters, onChange, onApply }: FilterBarProp
             </SelectContent>
           </Select>
           <Select value={f.comparator} onValueChange={(v) => update(i, { comparator: v as Comparator })}>
-            <SelectTrigger className="h-7 w-28 text-xs">
+            <SelectTrigger size="sm" className="w-28 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -81,9 +88,9 @@ export function FilterBar({ columns, filters, onChange, onApply }: FilterBarProp
             disabled={valueless(f.comparator)}
             onChange={(e) => update(i, { value: e.target.value })}
             placeholder="value"
-            className="h-7 w-32 text-xs"
+            className="h-8 w-32 text-xs"
           />
-          <Button variant="ghost" size="icon" className="size-7" onClick={() => remove(i)}>
+          <Button variant="ghost" size="icon" className="size-8" onClick={() => remove(i)}>
             <X className="size-3.5" />
           </Button>
         </div>

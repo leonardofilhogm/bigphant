@@ -6,6 +6,8 @@ import {main} from '../models';
 import {sqlbuilder} from '../models';
 import {settings} from '../models';
 
+export function CommitTransaction():Promise<void>;
+
 export function CreateConnection(arg1:connections.ConnectionInput):Promise<connections.ConnectionMeta>;
 
 export function DeleteConnection(arg1:string):Promise<void>;
@@ -29,6 +31,10 @@ export function ListDatabases():Promise<Array<string>>;
 export function ListTables(arg1:string):Promise<Array<mysql.TableSummary>>;
 
 export function OpenConnection(arg1:string):Promise<void>;
+
+export function RollbackTransaction():Promise<void>;
+
+export function SchemaColumns(arg1:string):Promise<Record<string, Array<string>>>;
 
 export function ServerVersion():Promise<string>;
 

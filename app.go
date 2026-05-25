@@ -164,6 +164,15 @@ func (a *App) DescribeTable(database, table string) (mysql.TableStructure, error
 	return a.conn.DescribeTable(database, table)
 }
 
+// SchemaColumns returns table→columns for a database, used by SQL-editor
+// autocomplete.
+func (a *App) SchemaColumns(database string) (map[string][]string, error) {
+	if err := a.requireConn(); err != nil {
+		return nil, err
+	}
+	return a.conn.SchemaColumns(database)
+}
+
 // FetchRows runs a paginated table-browse SELECT (auto LIMIT 300).
 func (a *App) FetchRows(req sqlbuilder.FetchRowsRequest) (mysql.ResultSet, error) {
 	if err := a.requireConn(); err != nil {
@@ -201,6 +210,22 @@ type ExecOptions struct {
 	Database               string `json:"database"`
 }
 
+// CommitTransaction commits the active explicit transaction.
+func (a *App) CommitTransaction() error {
+	if err := a.requireConn(); err != nil {
+		return err
+	}
+	return a.conn.Commit()
+}
+
+// RollbackTransaction rolls back the active explicit transaction.
+func (a *App) RollbackTransaction() error {
+	if err := a.requireConn(); err != nil {
+		return err
+	}
+	return a.conn.Rollback()
+}
+
 // ExecuteRaw runs a user-typed SQL string through the server-side destructive
 // check and read-only guard.
 func (a *App) ExecuteRaw(query string, opts ExecOptions) (mysql.RawResult, error) {
@@ -223,5 +248,8 @@ func (a *App) UpdateSettings(s settings.AppSettings) error {
 		}
 	}
 	a.settings = s
+	if a.conn != nil {
+		a.conn.SetTxMode(s.DefaultTransactionMode)
+	}
 	return nil
 }

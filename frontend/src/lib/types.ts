@@ -11,6 +11,8 @@ export interface ConnectionMeta {
   username: string
   default_database: string
   read_only: boolean
+  // string (not TransactionMode) to match the generated Wails model.
+  transaction_mode: string
   label: string
   label_color: string
   folder: string
@@ -81,6 +83,9 @@ export interface Filter {
   column: string
   comparator: Comparator
   value: string
+  // UI-only: when false the filter row is kept but excluded on Apply. Stripped
+  // by the generated Filter model before reaching the Go backend.
+  enabled?: boolean
 }
 
 export interface ResultSet {

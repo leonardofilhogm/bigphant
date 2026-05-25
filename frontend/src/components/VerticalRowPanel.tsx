@@ -90,7 +90,7 @@ export function VerticalRowPanel({
                   {isPk && <KeyRound className="size-3 text-amber-500" />}
                   <span className={cn(isPk && "font-semibold")}>{c.name}</span>
                   <span className="text-muted-foreground font-normal">{c.type}</span>
-                  {!(isPk && !isNew) && (
+                  {!isPk && (
                     <button
                       type="button"
                       onClick={() =>
@@ -118,8 +118,12 @@ export function VerticalRowPanel({
                   <Input
                     value={isNull ? "" : (draft[c.name] ?? "")}
                     onChange={(e) => setDraft({ ...draft, [c.name]: e.target.value })}
-                    placeholder={isNull ? "NULL" : undefined}
-                    className={cn("h-8 font-mono text-xs", isNull && "text-muted-foreground italic")}
+                    placeholder={isNull ? "NULL" : (isPk && isNew ? "auto" : undefined)}
+                    className={cn(
+                      "h-8 font-mono text-xs",
+                      isNull && "text-muted-foreground italic",
+                      isPk && isNew && !draft[c.name] && "text-muted-foreground"
+                    )}
                     disabled={isDisabled}
                   />
                 )}
