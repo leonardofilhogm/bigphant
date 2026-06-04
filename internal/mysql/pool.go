@@ -2,14 +2,19 @@ package mysql
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
 	"bigphant/internal/connections"
+
+	"github.com/go-sql-driver/mysql"
 )
 
 // Conn wraps an open *sql.DB pool together with the metadata of the connection
@@ -21,23 +26,41 @@ type Conn struct {
 	txMode  string // "auto_commit" | "explicit_commit"
 	tx      *sql.Tx
 	mu      sync.Mutex
+	flavor  string // "MySQL" | "MariaDB"
+	version string // clean numeric version, e.g. "8.0.36" or "11.4.2"
 }
 
-// dsn builds a go-sql-driver/mysql DSN. parseTime maps DATE/DATETIME to
-// time.Time so they JSON-encode as RFC3339 strings.
-func dsn(c connections.Connection) string {
-	addr := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
-	cfg := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&loc=Local&interpolateParams=false",
-		c.Username, c.Password, addr, c.DefaultDatabase)
+// mysqlConfig builds a mysql.Config used to open a connector. We avoid
+// FormatDSN + sql.Open because go-sql-driver writes the password into the DSN
+// string without escaping reserved characters (`%`, `@`, `:`, `/`), so any of
+// those in a real password get mis-parsed back out. Using NewConnector keeps
+// the credentials in Go memory and skips DSN parsing entirely.
+func mysqlConfig(c connections.Connection) *mysql.Config {
+	cfg := mysql.NewConfig()
+	cfg.User = c.Username
+	cfg.Passwd = c.Password
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+	cfg.DBName = c.DefaultDatabase
+	cfg.ParseTime = true
+	cfg.Loc = time.Local
+	cfg.InterpolateParams = false
 	return cfg
 }
 
 // Open creates a connection pool and verifies it with a ping.
 func Open(c connections.Connection) (*Conn, error) {
-	db, err := sql.Open("mysql", dsn(c))
+	// TEMP DEBUG: confirm password bytes arrive intact at the driver. Remove
+	// once the access-denied investigation closes.
+	sum := sha256.Sum256([]byte(c.Password))
+	log.Printf("[mysql.Open] user=%q host=%s:%d db=%q pwd_len=%d pwd_sha256_8=%s",
+		c.Username, c.Host, c.Port, c.DefaultDatabase, len(c.Password), hex.EncodeToString(sum[:4]))
+
+	connector, err := mysql.NewConnector(mysqlConfig(c))
 	if err != nil {
 		return nil, err
 	}
+	db := sql.OpenDB(connector)
 	db.SetMaxOpenConns(8)
 	db.SetMaxIdleConns(4)
 	db.SetConnMaxLifetime(time.Hour)
@@ -48,7 +71,18 @@ func Open(c connections.Connection) (*Conn, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Conn{DB: db, Meta: c.Meta(), txMode: c.TransactionMode}, nil
+	flavor, version := detectFlavor(db)
+	return &Conn{DB: db, Meta: c.Meta(), txMode: c.TransactionMode, flavor: flavor, version: version}, nil
+}
+
+// Ping verifies the pool can reach the server.
+func (c *Conn) Ping() error {
+	if c == nil || c.DB == nil {
+		return fmt.Errorf("no active connection")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return c.DB.PingContext(ctx)
 }
 
 // Ping opens a throwaway pool, pings, and closes it — used by TestConnection.

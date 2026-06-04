@@ -23,32 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Logo } from "@/components/Logo"
+import { DriverLogo } from "@/components/DriverLogo"
+import { LicensePanel } from "@/components/LicensePanel"
 import { cn } from "@/lib/utils"
+import { useMenuEvents } from "@/lib/useMenuEvents"
 import { api } from "@/lib/api"
+import { isPlanRequired, parseAppError } from "@/lib/errors"
+import type { LicenseInfo } from "@/lib/license-types"
 import type { ConnectionInput, ConnectionMeta, TransactionMode } from "@/lib/types"
-
-// ── Driver avatar ────────────────────────────────────────────────────────────
-
-const DRIVER_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  mysql:    { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-600 dark:text-orange-400", label: "My" },
-  postgres: { bg: "bg-sky-100 dark:bg-sky-900/40",      text: "text-sky-600 dark:text-sky-400",      label: "Pg" },
-  sqlite:   { bg: "bg-teal-100 dark:bg-teal-900/40",    text: "text-teal-600 dark:text-teal-400",    label: "Sq" },
-}
-
-function DriverAvatar({ driver }: { driver: string }) {
-  if (driver === "mysql") {
-    return <Logo className="size-9 shrink-0 rounded-lg" />
-  }
-  const style = DRIVER_STYLES[driver] ?? {
-    bg: "bg-muted", text: "text-muted-foreground", label: "DB",
-  }
-  return (
-    <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold", style.bg, style.text)}>
-      {style.label}
-    </div>
-  )
-}
 
 // ── Label color palette ──────────────────────────────────────────────────────
 
@@ -73,8 +55,10 @@ const emptyInput: ConnectionInput = {
   username: "root",
   password: "",
   default_database: "",
+  sslmode: "prefer",
   read_only: false,
   transaction_mode: "auto_commit",
+  edit_mode: "",
   label: "",
   label_color: "",
   folder: "",
@@ -83,10 +67,21 @@ const emptyInput: ConnectionInput = {
 // ── ConnectionList ────────────────────────────────────────────────────────────
 
 interface ConnectionListProps {
+  license: LicenseInfo | null
+  onPlanRequired: (message: string) => void
+  onManageLicense: () => void
+  onLicenseSignOut: () => void
   onOpen: (connection: ConnectionMeta) => void
 }
 
-export function ConnectionList({ onOpen }: ConnectionListProps) {
+export function ConnectionList({
+  license,
+  onPlanRequired,
+  onManageLicense,
+  onLicenseSignOut,
+  onOpen,
+}: ConnectionListProps) {
+  const [licenseOpen, setLicenseOpen] = useState(false)
   const [connections, setConnections] = useState<ConnectionMeta[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
@@ -94,6 +89,7 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
   const [deleteTarget, setDeleteTarget] = useState<ConnectionMeta | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [createOpen, setCreateOpen] = useState(false)
 
   async function refresh() {
     try {
@@ -107,13 +103,22 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
 
   useEffect(() => { refresh() }, [])
 
+  // Native-menu actions available on the connection-list screen (no workspace
+  // open). This page only mounts when visible, so no scoping flag is needed.
+  useMenuEvents({
+    "menu:new-connection": () => setCreateOpen(true),
+    "menu:license": () => setLicenseOpen(true),
+  })
+
   async function open(connection: ConnectionMeta) {
     setOpening(true)
     try {
       await api.openConnection(connection.id)
       onOpen(connection)
     } catch (e) {
-      toast.error("Could not open connection", { description: String(e) })
+      const { code, message } = parseAppError(e)
+      if (code === "PlanRequired") onPlanRequired(message)
+      else toast.error("Could not open connection", { description: message })
     } finally {
       setOpening(false)
     }
@@ -154,7 +159,7 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
 
   return (
     <div className="bg-muted/30 flex h-screen flex-col">
-      <header className="flex items-center justify-between px-6 py-4">
+      <header className="titlebar-drag titlebar-inset flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
           <img
             src="/favicon.png"
@@ -164,7 +169,25 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
           />
           <span className="text-sm font-semibold">Bigphant</span>
         </div>
-        <ModeToggle />
+        <div className="flex items-center gap-2">
+          {license && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => setLicenseOpen(true)}
+            >
+              License
+              <Badge
+                variant={license.plan === "pro" ? "default" : "secondary"}
+                className="h-4 px-1.5 text-[10px]"
+              >
+                {license.plan === "pro" ? "Pro" : "Free"}
+              </Badge>
+            </Button>
+          )}
+          <ModeToggle />
+        </div>
       </header>
 
       <div className="flex flex-1 items-center justify-center p-6">
@@ -177,8 +200,13 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
                   ? "No connections yet — create one to get started"
                   : "Double-click a connection to open a workspace"}
               </p>
+              {license && license.max_connections > 0 && (
+                <p className="text-muted-foreground text-[10px]">
+                  {license.connection_count} / {license.max_connections} connections (Free)
+                </p>
+              )}
             </div>
-            <ConnectionFormDialog mode="create" onSaved={refresh} />
+            <ConnectionFormDialog mode="create" onSaved={refresh} onPlanRequired={onPlanRequired} />
           </div>
 
           {connections.length > 0 && (
@@ -212,10 +240,11 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
                             className={cn(
                               "flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors",
                               folder && "pl-8",
+                              c.locked && "opacity-50",
                               selected === c.id ? "bg-accent" : "hover:bg-accent/50"
                             )}
                           >
-                            <DriverAvatar driver={c.driver} />
+                            <DriverLogo driver={c.driver} className="size-9 shrink-0 rounded-lg object-contain" />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="truncate text-sm font-medium">{c.name}</span>
@@ -233,6 +262,11 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
                                     />
                                     {c.label}
                                   </span>
+                                )}
+                                {c.locked && (
+                                  <Badge variant="outline" className="h-4 gap-1 px-1.5 text-[10px]">
+                                    <Lock className="size-2.5" /> Pro
+                                  </Badge>
                                 )}
                                 {c.read_only && (
                                   <Badge variant="secondary" className="h-4 gap-1 px-1.5 text-[10px]">
@@ -298,6 +332,16 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
         />
       )}
 
+      {createOpen && (
+        <ConnectionFormDialog
+          mode="create"
+          forceOpen
+          onPlanRequired={onPlanRequired}
+          onSaved={() => { setCreateOpen(false); refresh() }}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
+
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -314,6 +358,25 @@ export function ConnectionList({ onOpen }: ConnectionListProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={licenseOpen} onOpenChange={setLicenseOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>License</DialogTitle>
+            <DialogDescription>View your plan, devices, and manage activation.</DialogDescription>
+          </DialogHeader>
+          <LicensePanel
+            onChangeLicense={() => {
+              setLicenseOpen(false)
+              onManageLicense()
+            }}
+            onSignOut={() => {
+              setLicenseOpen(false)
+              onLicenseSignOut()
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -324,11 +387,19 @@ interface ConnectionFormDialogProps {
   mode: "create" | "edit"
   connection?: ConnectionMeta
   onSaved: () => void
+  onPlanRequired?: (message: string) => void
   onClose?: () => void
   forceOpen?: boolean
 }
 
-function ConnectionFormDialog({ mode, connection, onSaved, onClose, forceOpen }: ConnectionFormDialogProps) {
+export function ConnectionFormDialog({
+  mode,
+  connection,
+  onSaved,
+  onPlanRequired,
+  onClose,
+  forceOpen,
+}: ConnectionFormDialogProps) {
   const [open, setOpen] = useState(forceOpen ?? false)
   const [input, setInput] = useState<ConnectionInput>(() =>
     mode === "edit" && connection
@@ -340,8 +411,10 @@ function ConnectionFormDialog({ mode, connection, onSaved, onClose, forceOpen }:
           username: connection.username,
           password: "",
           default_database: connection.default_database,
+          sslmode: connection.sslmode || "prefer",
           read_only: connection.read_only,
           transaction_mode: (connection.transaction_mode as TransactionMode) || "auto_commit",
+          edit_mode: connection.edit_mode || "",
           label: connection.label,
           label_color: connection.label_color,
           folder: connection.folder,
@@ -388,7 +461,9 @@ function ConnectionFormDialog({ mode, connection, onSaved, onClose, forceOpen }:
       handleOpenChange(false)
       onSaved()
     } catch (e) {
-      toast.error("Could not save connection", { description: String(e) })
+      const { code, message } = parseAppError(e)
+      if (isPlanRequired(e) && onPlanRequired) onPlanRequired(message)
+      else toast.error("Could not save connection", { description: message })
     } finally {
       setSaving(false)
     }
@@ -422,13 +497,21 @@ function ConnectionFormDialog({ mode, connection, onSaved, onClose, forceOpen }:
               </Field>
             </div>
             <Field label="Driver">
-              <Select value={input.driver} onValueChange={(v) => set("driver", v)}>
+              <Select
+                value={input.driver}
+                onValueChange={(v) => {
+                  set("driver", v)
+                  if (v === "postgres") set("port", 5432 as any)
+                  if (v === "mysql" || v === "mariadb") set("port", 3306 as any)
+                }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="mysql">MySQL</SelectItem>
-                  <SelectItem value="postgres" disabled>PostgreSQL (soon)</SelectItem>
+                  <SelectItem value="mariadb">MariaDB</SelectItem>
+                  <SelectItem value="postgres">PostgreSQL</SelectItem>
                   <SelectItem value="sqlite" disabled>SQLite (soon)</SelectItem>
                 </SelectContent>
               </Select>
@@ -455,6 +538,19 @@ function ConnectionFormDialog({ mode, connection, onSaved, onClose, forceOpen }:
           <Field label="Default database (optional)">
             <Input value={input.default_database} onChange={(e) => set("default_database", e.target.value)} placeholder="myapp" />
           </Field>
+
+          {input.driver === "postgres" && (
+            <Field label="SSL mode">
+              <Select value={input.sslmode} onValueChange={(v) => set("sslmode", v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disable">disable</SelectItem>
+                  <SelectItem value="prefer">prefer</SelectItem>
+                  <SelectItem value="require">require</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Transaction mode">

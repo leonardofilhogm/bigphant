@@ -8,8 +8,19 @@ import type {
   TableSummary,
 } from "@/lib/types"
 
+const defaultConnFields = {
+  driver: "mysql",
+  sslmode: "prefer",
+  transaction_mode: "auto_commit",
+  edit_mode: "mixed",
+  label: "",
+  label_color: "",
+  folder: "",
+}
+
 export const mockConnections: ConnectionMeta[] = [
   {
+    ...defaultConnFields,
     id: "11111111-1111-1111-1111-111111111111",
     name: "Local dev",
     host: "127.0.0.1",
@@ -19,6 +30,7 @@ export const mockConnections: ConnectionMeta[] = [
     read_only: false,
   },
   {
+    ...defaultConnFields,
     id: "22222222-2222-2222-2222-222222222222",
     name: "Staging (read-only)",
     host: "staging.db.internal",
@@ -28,6 +40,7 @@ export const mockConnections: ConnectionMeta[] = [
     read_only: true,
   },
   {
+    ...defaultConnFields,
     id: "33333333-3333-3333-3333-333333333333",
     name: "Analytics replica",
     host: "10.0.4.21",
@@ -47,24 +60,42 @@ export const mockDatabases: string[] = [
   "sys",
 ]
 
+function mockTable(
+  name: string,
+  row_count: number,
+  size_bytes: number,
+  opts?: { engine?: string; charset?: string }
+): TableSummary {
+  const data = Math.floor(size_bytes * 0.75)
+  return {
+    name,
+    row_count,
+    engine: opts?.engine ?? "InnoDB",
+    size_bytes,
+    data_size_bytes: data,
+    index_size_bytes: size_bytes - data,
+    charset: opts?.charset ?? "utf8mb4",
+  }
+}
+
 export const mockTables: Record<string, TableSummary[]> = {
   employees: [
-    { name: "departments", row_count: 9, engine: "InnoDB", size_bytes: 16384 },
-    { name: "dept_emp", row_count: 331603, engine: "InnoDB", size_bytes: 13123584 },
-    { name: "dept_manager", row_count: 24, engine: "InnoDB", size_bytes: 32768 },
-    { name: "employees", row_count: 300024, engine: "InnoDB", size_bytes: 15220736 },
-    { name: "salaries", row_count: 2844047, engine: "InnoDB", size_bytes: 100925440 },
-    { name: "titles", row_count: 443308, engine: "InnoDB", size_bytes: 20512768 },
+    mockTable("departments", 9, 16384),
+    mockTable("dept_emp", 331603, 13123584),
+    mockTable("dept_manager", 24, 32768),
+    mockTable("employees", 300024, 15220736),
+    mockTable("salaries", 2844047, 100925440),
+    mockTable("titles", 443308, 20512768),
   ],
   shop: [
-    { name: "customers", row_count: 1280, engine: "InnoDB", size_bytes: 196608 },
-    { name: "orders", row_count: 8452, engine: "InnoDB", size_bytes: 1310720 },
-    { name: "order_items", row_count: 23901, engine: "InnoDB", size_bytes: 3145728 },
-    { name: "products", row_count: 642, engine: "InnoDB", size_bytes: 131072 },
+    mockTable("customers", 1280, 196608),
+    mockTable("orders", 8452, 1310720),
+    mockTable("order_items", 23901, 3145728),
+    mockTable("products", 642, 131072),
   ],
   metrics: [
-    { name: "events", row_count: 9120334, engine: "InnoDB", size_bytes: 882900992 },
-    { name: "sessions", row_count: 412903, engine: "InnoDB", size_bytes: 41943040 },
+    mockTable("events", 9120334, 882900992),
+    mockTable("sessions", 412903, 41943040),
   ],
 }
 

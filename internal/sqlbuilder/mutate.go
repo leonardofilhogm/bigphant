@@ -6,14 +6,6 @@ import (
 	"strings"
 )
 
-// qualified returns `db`.`table` (or just `table` when db is empty).
-func qualified(database, table string) string {
-	if database == "" {
-		return quoteIdent(table)
-	}
-	return quoteIdent(database) + "." + quoteIdent(table)
-}
-
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -25,6 +17,10 @@ func sortedKeys(m map[string]any) []string {
 
 // BuildInsert builds an INSERT for the given column→value map.
 func BuildInsert(database, table string, values map[string]any) (string, []any, error) {
+	return BuildInsertDialect(MySQLDialect{}, database, table, values)
+}
+
+func BuildInsertDialect(d Dialect, database, table string, values map[string]any) (string, []any, error) {
 	if len(values) == 0 {
 		return "", nil, errors.New("insert requires at least one value")
 	}
@@ -33,11 +29,11 @@ func BuildInsert(database, table string, values map[string]any) (string, []any, 
 	placeholders := make([]string, len(keys))
 	args := make([]any, len(keys))
 	for i, k := range keys {
-		cols[i] = quoteIdent(k)
-		placeholders[i] = "?"
+		cols[i] = d.QuoteIdent(k)
+		placeholders[i] = d.Placeholder(i + 1)
 		args[i] = values[k]
 	}
-	sql := "INSERT INTO " + qualified(database, table) +
+	sql := "INSERT INTO " + d.Qualified(database, table) +
 		" (" + strings.Join(cols, ", ") + ") VALUES (" + strings.Join(placeholders, ", ") + ")"
 	return sql, args, nil
 }
@@ -45,6 +41,10 @@ func BuildInsert(database, table string, values map[string]any) (string, []any, 
 // BuildUpdate builds an UPDATE keyed by the primary-key map. SET args come
 // first, then the WHERE (pk) args.
 func BuildUpdate(database, table string, pk, values map[string]any) (string, []any, error) {
+	return BuildUpdateDialect(MySQLDialect{}, database, table, pk, values)
+}
+
+func BuildUpdateDialect(d Dialect, database, table string, pk, values map[string]any) (string, []any, error) {
 	if len(values) == 0 {
 		return "", nil, errors.New("update requires at least one value")
 	}
@@ -56,18 +56,18 @@ func BuildUpdate(database, table string, pk, values map[string]any) (string, []a
 	setParts := make([]string, len(setKeys))
 	args := make([]any, 0, len(values)+len(pk))
 	for i, k := range setKeys {
-		setParts[i] = quoteIdent(k) + " = ?"
+		setParts[i] = d.QuoteIdent(k) + " = " + d.Placeholder(len(args)+1)
 		args = append(args, values[k])
 	}
 
 	pkKeys := sortedKeys(pk)
 	whereParts := make([]string, len(pkKeys))
 	for i, k := range pkKeys {
-		whereParts[i] = quoteIdent(k) + " = ?"
+		whereParts[i] = d.QuoteIdent(k) + " = " + d.Placeholder(len(args)+1)
 		args = append(args, pk[k])
 	}
 
-	sql := "UPDATE " + qualified(database, table) +
+	sql := "UPDATE " + d.Qualified(database, table) +
 		" SET " + strings.Join(setParts, ", ") +
 		" WHERE " + strings.Join(whereParts, " AND ")
 	return sql, args, nil
@@ -76,6 +76,10 @@ func BuildUpdate(database, table string, pk, values map[string]any) (string, []a
 // BuildDelete builds a DELETE matching any of the given primary-key maps,
 // e.g. WHERE (`id` = ?) OR (`id` = ?).
 func BuildDelete(database, table string, pks []map[string]any) (string, []any, error) {
+	return BuildDeleteDialect(MySQLDialect{}, database, table, pks)
+}
+
+func BuildDeleteDialect(d Dialect, database, table string, pks []map[string]any) (string, []any, error) {
 	if len(pks) == 0 {
 		return "", nil, errors.New("delete requires at least one primary key")
 	}
@@ -88,12 +92,12 @@ func BuildDelete(database, table string, pks []map[string]any) (string, []any, e
 		keys := sortedKeys(pk)
 		parts := make([]string, len(keys))
 		for i, k := range keys {
-			parts[i] = quoteIdent(k) + " = ?"
+			parts[i] = d.QuoteIdent(k) + " = " + d.Placeholder(len(args)+1)
 			args = append(args, pk[k])
 		}
 		groups = append(groups, "("+strings.Join(parts, " AND ")+")")
 	}
-	sql := "DELETE FROM " + qualified(database, table) +
+	sql := "DELETE FROM " + d.Qualified(database, table) +
 		" WHERE " + strings.Join(groups, " OR ")
 	return sql, args, nil
 }

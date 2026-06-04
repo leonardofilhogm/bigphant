@@ -24,6 +24,7 @@ interface VerticalRowPanelProps {
   row: unknown[] | null
   isNew?: boolean
   onSave: (values: Record<string, string | null>) => void
+  dirtyColumns?: Set<string>
 }
 
 function toEditable(value: unknown): string | null {
@@ -40,6 +41,7 @@ export function VerticalRowPanel({
   row,
   isNew = false,
   onSave,
+  dirtyColumns,
 }: VerticalRowPanelProps) {
   const [draft, setDraft] = useState<Record<string, string | null>>({})
   const [search, setSearch] = useState("")
@@ -84,9 +86,10 @@ export function VerticalRowPanel({
             const isJson = typeof row?.[i] === "object" && row?.[i] !== null
             const isNull = draft[c.name] === null
             const isDisabled = (isPk && !isNew) || isNull
+            const isDirty = dirtyColumns?.has(c.name) ?? false
             return (
               <div key={c.name} className="grid gap-1.5">
-                <Label className="flex items-center gap-1.5 text-xs">
+                <Label className={cn("flex items-center gap-1.5 text-xs", isDirty && "text-amber-600 dark:text-amber-400")}>
                   {isPk && <KeyRound className="size-3 text-amber-500" />}
                   <span className={cn(isPk && "font-semibold")}>{c.name}</span>
                   <span className="text-muted-foreground font-normal">{c.type}</span>
@@ -122,7 +125,8 @@ export function VerticalRowPanel({
                     className={cn(
                       "h-8 font-mono text-xs",
                       isNull && "text-muted-foreground italic",
-                      isPk && isNew && !draft[c.name] && "text-muted-foreground"
+                      isPk && isNew && !draft[c.name] && "text-muted-foreground",
+                      isDirty && !isNull && "bg-amber-500/10 italic"
                     )}
                     disabled={isDisabled}
                   />

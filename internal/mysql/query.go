@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"bigphant/internal/dbtypes"
 	"bigphant/internal/sqlbuilder"
 )
 
@@ -42,7 +43,7 @@ func scanResult(rows *sql.Rows, rs *ResultSet) error {
 	}
 	rs.Columns = make([]Column, len(colTypes))
 	for i, ct := range colTypes {
-		rs.Columns[i] = Column{Name: ct.Name(), Type: ct.DatabaseTypeName()}
+		rs.Columns[i] = dbtypes.Column{Name: ct.Name(), Type: ct.DatabaseTypeName()}
 	}
 
 	for rows.Next() {

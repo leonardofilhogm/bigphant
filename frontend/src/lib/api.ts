@@ -8,26 +8,49 @@ import {
   DeleteRows,
   DescribeTable,
   ExecuteRaw,
+  EntityDefinition,
   FetchRows,
   GetSettings,
   InsertRow,
   ListConnections,
   ListDatabases,
+  ListEntities,
+  ListSchemas,
   ListTables,
   OpenConnection,
   RollbackTransaction,
+  SetConnectionEditMode,
   SchemaColumns,
+  SetActiveDatabase,
+  ServerFlavor,
   ServerVersion,
   TestConnection,
   UpdateConnection,
   UpdateRow,
   UpdateSettings,
+  ActivateLicense,
+  AlterTable,
+  ConfirmQuitClose,
+  DeactivateLicenseDevice,
+  DeactivateThisDevice,
+  RemoveLicense,
+  ExportRows,
+  ForceValidateLicense,
+  GetCheckoutURL,
+  GetLicense,
+  LicenseActivated,
+  ListLicenseDevices,
+  PreviewAlterTable,
+  RequestFreeLicense,
 } from "../../wailsjs/go/main/App"
 import { sqlbuilder } from "../../wailsjs/go/models"
 import type {
+  AlterPreview,
+  AlterTableRequest,
   AppSettings,
   ConnectionInput,
   ConnectionMeta,
+  Entity,
   ExecOptions,
   FetchRowsRequest,
   RawResult,
@@ -35,6 +58,7 @@ import type {
   TableStructure,
   TableSummary,
 } from "@/lib/types"
+import type { LicenseDevice, LicenseInfo } from "@/lib/license-types"
 
 interface TestResult {
   ok: boolean
@@ -48,10 +72,21 @@ export const api = {
   updateConnection: (id: string, input: ConnectionInput): Promise<ConnectionMeta> =>
     UpdateConnection(id, input),
   deleteConnection: (id: string): Promise<void> => DeleteConnection(id),
+  setConnectionEditMode: (id: string, mode: string): Promise<ConnectionMeta> =>
+    SetConnectionEditMode(id, mode),
   testConnection: (input: ConnectionInput): Promise<TestResult> => TestConnection(input),
   openConnection: (id: string): Promise<void> => OpenConnection(id),
   listDatabases: (): Promise<string[]> => ListDatabases(),
+  listSchemas: (database: string): Promise<string[]> => ListSchemas(database),
+  setActiveDatabase: (database: string): Promise<void> => SetActiveDatabase(database),
   listTables: (database: string): Promise<TableSummary[]> => ListTables(database),
+  listEntities: (database: string): Promise<Entity[]> => ListEntities(database),
+  entityDefinition: (
+    database: string,
+    schema: string,
+    kind: string,
+    name: string
+  ): Promise<string> => EntityDefinition(database, schema, kind, name),
   describeTable: (database: string, table: string): Promise<TableStructure> =>
     DescribeTable(database, table),
   schemaColumns: (database: string): Promise<Record<string, string[]>> =>
@@ -78,6 +113,29 @@ export const api = {
   commitTransaction: (): Promise<void> => CommitTransaction(),
   rollbackTransaction: (): Promise<void> => RollbackTransaction(),
   serverVersion: (): Promise<string> => ServerVersion(),
+  serverFlavor: (): Promise<string> => ServerFlavor(),
   getSettings: (): Promise<AppSettings> => GetSettings(),
   updateSettings: (s: AppSettings): Promise<void> => UpdateSettings(s),
+
+  getLicense: (): Promise<LicenseInfo> => GetLicense() as Promise<LicenseInfo>,
+  licenseActivated: (): Promise<boolean> => LicenseActivated(),
+  activateLicense: (key: string): Promise<LicenseInfo> =>
+    ActivateLicense(key) as Promise<LicenseInfo>,
+  requestFreeLicense: (email: string): Promise<void> => RequestFreeLicense(email),
+  deactivateThisDevice: (): Promise<void> => DeactivateThisDevice(),
+  removeLicense: (): Promise<void> => RemoveLicense(),
+  deactivateLicenseDevice: (deviceId: string): Promise<void> =>
+    DeactivateLicenseDevice(deviceId),
+  listLicenseDevices: (): Promise<LicenseDevice[]> =>
+    ListLicenseDevices() as Promise<LicenseDevice[]>,
+  forceValidateLicense: (): Promise<LicenseInfo> =>
+    ForceValidateLicense() as Promise<LicenseInfo>,
+  getCheckoutURL: (): Promise<string> => GetCheckoutURL(),
+  confirmQuitClose: (): Promise<void> => ConfirmQuitClose(),
+  exportRows: (database: string, table: string, format: string): Promise<void> =>
+    ExportRows(database, table, format),
+  previewAlterTable: (req: AlterTableRequest): Promise<AlterPreview> =>
+    PreviewAlterTable(sqlbuilder.AlterTableRequest.createFrom(req)),
+  alterTable: (req: AlterTableRequest, confirmed: boolean): Promise<RawResult> =>
+    AlterTable(sqlbuilder.AlterTableRequest.createFrom(req), confirmed),
 }

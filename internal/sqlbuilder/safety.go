@@ -37,6 +37,31 @@ func IsReadOnly(sql string) bool {
 //  4. ALTER TABLE ... DROP COLUMN
 //
 // When in doubt the classifier errs toward "destructive".
+// IsSchemaDDL reports statements that change schema objects (§8.1 ExecuteRaw gate).
+func IsSchemaDDL(sql string) bool {
+	switch FirstKeyword(sql) {
+	case "create", "alter", "drop", "rename", "truncate":
+		return true
+	}
+	return false
+}
+
+// ClassifyAlter reports whether any op in a structured ALTER request is destructive.
+func ClassifyAlter(req AlterTableRequest) bool {
+	for _, op := range req.Ops {
+		switch op.Kind {
+		case "drop_column", "drop_index", "drop_primary_key",
+			"drop_constraint", "drop_foreign_key", "drop_default":
+			return true
+		case "modify_column":
+			if op.Column != nil && !op.Column.Nullable {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func Classify(sql string) bool {
 	lower := strings.ToLower(sql)
 	switch FirstKeyword(sql) {

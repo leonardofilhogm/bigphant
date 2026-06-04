@@ -3,22 +3,48 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
+
+	"bigphant/internal/dbtypes"
 )
 
 func ctx5() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 15*time.Second)
 }
 
-// Version returns the MySQL server version string (e.g. "8.0.36").
-func (c *Conn) Version() (string, error) {
-	ctx, cancel := ctx5()
+// detectFlavor calls SELECT VERSION() and returns ("MySQL"|"MariaDB", clean version).
+// Called once at Open time so all subsequent calls are zero-cost reads.
+func detectFlavor(db *sql.DB) (flavor, version string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	var v string
-	if err := c.DB.QueryRowContext(ctx, "SELECT VERSION()").Scan(&v); err != nil {
-		return "", err
+	var raw string
+	if err := db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&raw); err != nil {
+		return "MySQL", ""
 	}
-	return v, nil
+	// MariaDB reports e.g. "10.11.2-MariaDB" or "11.4.2-MariaDB-ubu2204".
+	// MySQL reports e.g. "8.0.36" with no dash-suffix containing "MariaDB".
+	upper := strings.ToUpper(raw)
+	if strings.Contains(upper, "MARIADB") {
+		// Extract numeric part before the first "-".
+		ver := raw
+		if i := strings.Index(raw, "-"); i > 0 {
+			ver = raw[:i]
+		}
+		return "MariaDB", ver
+	}
+	// MySQL: version string is already a clean numeric value.
+	return "MySQL", raw
+}
+
+// Version returns the clean numeric server version (e.g. "8.0.36" or "11.4.2").
+func (c *Conn) Version() (string, error) {
+	return c.version, nil
+}
+
+// Flavor returns the database engine name: "MySQL" or "MariaDB".
+func (c *Conn) Flavor() string {
+	return c.flavor
 }
 
 // ListDatabases returns the schemas the user can see (SHOW DATABASES).
@@ -42,6 +68,12 @@ func (c *Conn) ListDatabases() ([]string, error) {
 	return dbs, rows.Err()
 }
 
+// ListSchemas is not applicable to MySQL in this app's model (databases are the
+// primary namespace). It returns an empty list.
+func (c *Conn) ListSchemas(_ string) ([]string, error) {
+	return []string{}, nil
+}
+
 // ListTables returns base tables in a database with approximate row counts,
 // engine, and size (from INFORMATION_SCHEMA — counts are approximate for
 // InnoDB, see docs/prd.md §11).
@@ -52,7 +84,10 @@ func (c *Conn) ListTables(database string) ([]TableSummary, error) {
 		SELECT TABLE_NAME,
 		       COALESCE(TABLE_ROWS, 0),
 		       COALESCE(ENGINE, ''),
-		       COALESCE(DATA_LENGTH, 0) + COALESCE(INDEX_LENGTH, 0)
+		       COALESCE(DATA_LENGTH, 0) + COALESCE(INDEX_LENGTH, 0),
+		       COALESCE(DATA_LENGTH, 0),
+		       COALESCE(INDEX_LENGTH, 0),
+		       COALESCE(TABLE_COLLATION, '')
 		FROM INFORMATION_SCHEMA.TABLES
 		WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
 		ORDER BY TABLE_NAME`
@@ -65,9 +100,14 @@ func (c *Conn) ListTables(database string) ([]TableSummary, error) {
 	var out []TableSummary
 	for rows.Next() {
 		var t TableSummary
-		if err := rows.Scan(&t.Name, &t.RowCount, &t.Engine, &t.SizeBytes); err != nil {
+		var collation string
+		if err := rows.Scan(
+			&t.Name, &t.RowCount, &t.Engine, &t.SizeBytes,
+			&t.DataSizeBytes, &t.IndexSizeBytes, &collation,
+		); err != nil {
 			return nil, err
 		}
+		t.Charset = dbtypes.ParseCharset(collation)
 		out = append(out, t)
 	}
 	return out, rows.Err()

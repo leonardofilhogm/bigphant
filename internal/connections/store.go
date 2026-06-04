@@ -81,6 +81,9 @@ func (s *Store) Get(id string) (Connection, error) {
 func (s *Store) Create(in ConnectionInput) (ConnectionMeta, error) {
 	c := fromInput(in)
 	c.ID = uuid.NewString()
+	if c.EditMode == "" {
+		c.EditMode = "mixed"
+	}
 	now := time.Now().UTC()
 	c.CreatedAt = now
 	c.UpdatedAt = now
@@ -104,6 +107,29 @@ func (s *Store) Update(id string, in ConnectionInput) (ConnectionMeta, error) {
 	if c.Password == "" {
 		c.Password = existing.Password
 	}
+	// edit_mode is set from the workspace topbar (SetEditMode), not the
+	// New/Edit form, which never sends it — a blank value preserves the
+	// stored choice instead of resetting it to the default.
+	if c.EditMode == "" {
+		c.EditMode = existing.EditMode
+	}
+	if err := s.save(c); err != nil {
+		return ConnectionMeta{}, err
+	}
+	return c.Meta(), nil
+}
+
+// SetEditMode updates only the row-editing method for a connection, leaving
+// every other field (including the password) untouched. Driven by the
+// workspace topbar; works regardless of the read-only flag since it's a UI
+// preference, not a write to the database.
+func (s *Store) SetEditMode(id, mode string) (ConnectionMeta, error) {
+	c, err := s.Get(id)
+	if err != nil {
+		return ConnectionMeta{}, err
+	}
+	c.EditMode = mode
+	c.UpdatedAt = time.Now().UTC()
 	if err := s.save(c); err != nil {
 		return ConnectionMeta{}, err
 	}

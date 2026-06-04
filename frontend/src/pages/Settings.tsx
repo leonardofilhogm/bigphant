@@ -2,14 +2,6 @@ import { useTheme } from "next-themes"
 
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Separator } from "@/components/ui/separator"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -17,6 +9,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 import type { AppSettings } from "@/lib/types"
 
 interface SettingsProps {
@@ -26,6 +26,7 @@ interface SettingsProps {
   onChange: (settings: AppSettings) => void
   connectionReadOnly: boolean
   onConnectionReadOnlyChange: (v: boolean) => void
+  onReplayWelcome?: () => void
 }
 
 export function Settings({
@@ -35,6 +36,7 @@ export function Settings({
   onChange,
   connectionReadOnly,
   onConnectionReadOnlyChange,
+  onReplayWelcome,
 }: SettingsProps) {
   const { theme, setTheme } = useTheme()
 
@@ -46,7 +48,7 @@ export function Settings({
           <DialogDescription>Preferences apply to this workspace.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
+        <div className="grid gap-4">
           <Row
             label="Allow destructive operations without WHERE"
             hint="When off, UPDATE/DELETE without WHERE is blocked entirely."
@@ -101,6 +103,25 @@ export function Settings({
               </SelectContent>
             </Select>
           </Row>
+
+          {onReplayWelcome && (
+            <>
+              <Separator />
+              <div className="space-y-1">
+                <Label className="text-sm">Intro</Label>
+                <button
+                  type="button"
+                  className="text-primary block text-sm underline-offset-4 hover:underline"
+                  onClick={() => {
+                    onOpenChange(false)
+                    onReplayWelcome()
+                  }}
+                >
+                  Replay welcome
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -15,6 +15,7 @@ type AppSettings struct {
 	AllowDestructiveWithoutWhere bool   `json:"allow_destructive_without_where"`
 	DefaultTransactionMode       string `json:"default_transaction_mode"` // "auto_commit" | "explicit_commit"
 	Theme                        string `json:"theme"`                    // "light" | "dark" | "system"
+	OnboardingCompleted          bool   `json:"onboarding_completed"`
 }
 
 // Defaults returns the safe baseline used when no file exists yet.
@@ -23,6 +24,7 @@ func Defaults() AppSettings {
 		AllowDestructiveWithoutWhere: false,
 		DefaultTransactionMode:       "auto_commit",
 		Theme:                        "system",
+		OnboardingCompleted:          false,
 	}
 }
 

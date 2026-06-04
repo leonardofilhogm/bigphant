@@ -215,6 +215,7 @@ export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEdit
                 onToggleAll={() => {}}
                 onRowClick={() => {}}
                 onCellCommit={() => {}}
+                editMode="side_panel"
               />
             </div>
             <div className="text-muted-foreground border-t px-3 py-1 text-[11px]">

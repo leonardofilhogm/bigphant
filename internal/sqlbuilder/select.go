@@ -30,11 +30,6 @@ type FetchRowsRequest struct {
 // DefaultLimit is the table-browse page size (docs/prd.md §5).
 const DefaultLimit = 300
 
-// quoteIdent backtick-quotes an identifier, escaping embedded backticks.
-func quoteIdent(name string) string {
-	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
-}
-
 var valueComparators = map[string]bool{
 	"=": true, "!=": true, ">": true, "<": true, ">=": true, "<=": true, "LIKE": true,
 }
@@ -46,17 +41,17 @@ var nullComparators = map[string]bool{
 // BuildSelect returns the SQL and bound args for a table-browse query.
 // LIMIT/OFFSET are validated integers and inlined; all user values are bound.
 func BuildSelect(req FetchRowsRequest) (string, []any, error) {
+	return BuildSelectDialect(MySQLDialect{}, req)
+}
+
+func BuildSelectDialect(d Dialect, req FetchRowsRequest) (string, []any, error) {
 	if req.Table == "" {
 		return "", nil, fmt.Errorf("table is required")
 	}
 
 	var sb strings.Builder
 	sb.WriteString("SELECT * FROM ")
-	if req.Database != "" {
-		sb.WriteString(quoteIdent(req.Database))
-		sb.WriteByte('.')
-	}
-	sb.WriteString(quoteIdent(req.Table))
+	sb.WriteString(d.Qualified(req.Database, req.Table))
 
 	var args []any
 	clauses := make([]string, 0, len(req.Filters))
@@ -64,12 +59,12 @@ func BuildSelect(req FetchRowsRequest) (string, []any, error) {
 		if f.Column == "" {
 			continue
 		}
-		col := quoteIdent(f.Column)
+		col := d.QuoteIdent(f.Column)
 		switch {
 		case nullComparators[f.Comparator]:
 			clauses = append(clauses, col+" "+f.Comparator)
 		case valueComparators[f.Comparator]:
-			clauses = append(clauses, col+" "+f.Comparator+" ?")
+			clauses = append(clauses, col+" "+f.Comparator+" "+d.Placeholder(len(args)+1))
 			args = append(args, f.Value)
 		default:
 			return "", nil, fmt.Errorf("unsupported comparator: %q", f.Comparator)
@@ -86,7 +81,7 @@ func BuildSelect(req FetchRowsRequest) (string, []any, error) {
 			dir = "DESC"
 		}
 		sb.WriteString(" ORDER BY ")
-		sb.WriteString(quoteIdent(req.OrderBy))
+		sb.WriteString(d.QuoteIdent(req.OrderBy))
 		sb.WriteByte(' ')
 		sb.WriteString(dir)
 	}

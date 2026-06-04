@@ -39,7 +39,7 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.243 0 0); /* #202020 */
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -117,4 +117,68 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@keyframes welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.welcome-anim {
+  animation: welcome-in 420ms ease-out both;
+}
+
+.welcome-anim-delay {
+  animation: welcome-in 420ms ease-out 80ms both;
+}
+
+.slide-anim {
+  animation: slide-in 280ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-anim,
+  .welcome-anim-delay,
+  .slide-anim {
+    animation: none !important;
+  }
+}
+
+/* ── Frameless title bar (macOS full-size content window) ──────────────────
+   With mac.TitleBarHiddenInset() the webview extends under the native title
+   bar, so we recreate window dragging in CSS. `.titlebar-drag` regions move
+   the window; interactive children opt back out so clicks/inputs still work.
+   `.titlebar-inset` reserves room on the left for the traffic-light buttons. */
+.titlebar-drag {
+  --wails-draggable: drag;
+}
+.titlebar-drag button,
+.titlebar-drag a,
+.titlebar-drag input,
+.titlebar-drag select,
+.titlebar-drag label,
+.titlebar-drag [role="button"],
+.titlebar-drag [data-slot="select-trigger"],
+.titlebar-drag [data-slot="dropdown-menu-trigger"] {
+  --wails-draggable: no-drag;
+}
+.titlebar-inset {
+  padding-left: 92px;
 }

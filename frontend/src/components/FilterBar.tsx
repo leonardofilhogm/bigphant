@@ -1,5 +1,6 @@
 import { Plus, X } from "lucide-react"
 
+import { ColumnSelect } from "@/components/ColumnSelect"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -45,34 +46,30 @@ export function FilterBar({ columns, filters, onChange, onApply }: FilterBarProp
   }
 
   return (
-    <div className="bg-muted/30 flex flex-wrap items-center gap-2 border-b px-3 py-2">
+    <div className="bg-muted/30 flex flex-col gap-1 border-b px-2 py-1.5">
       {filters.length === 0 && (
         <span className="text-muted-foreground text-xs">No filters.</span>
       )}
 
       {filters.map((f, i) => (
-        <div key={i} className="flex items-center gap-1">
-          {i > 0 && <span className="text-muted-foreground px-1 text-[10px] font-medium">AND</span>}
+        <div key={i} className="flex items-center gap-1.5">
+          <span className="text-muted-foreground w-8 shrink-0 text-right text-[10px] font-medium">
+            {i > 0 ? "AND" : ""}
+          </span>
           <Checkbox
             checked={f.enabled !== false}
             onCheckedChange={(v) => update(i, { enabled: v === true })}
-            className="mr-0.5"
+            className="shrink-0"
             title={f.enabled !== false ? "Filter enabled" : "Filter disabled"}
           />
-          <Select value={f.column} onValueChange={(v) => update(i, { column: v })}>
-            <SelectTrigger size="sm" className="w-36 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {columns.map((c) => (
-                <SelectItem key={c.name} value={c.name} className="text-xs">
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ColumnSelect
+            columns={columns}
+            value={f.column}
+            onChange={(v) => update(i, { column: v })}
+            className="w-44 shrink-0"
+          />
           <Select value={f.comparator} onValueChange={(v) => update(i, { comparator: v as Comparator })}>
-            <SelectTrigger size="sm" className="w-28 text-xs">
+            <SelectTrigger size="sm" className="w-28 shrink-0 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -87,21 +84,24 @@ export function FilterBar({ columns, filters, onChange, onApply }: FilterBarProp
             value={f.value}
             disabled={valueless(f.comparator)}
             onChange={(e) => update(i, { value: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && onApply()}
             placeholder="value"
-            className="h-8 w-32 text-xs"
+            className="h-8 min-w-0 flex-1 text-xs"
           />
-          <Button variant="ghost" size="icon" className="size-8" onClick={() => remove(i)}>
+          <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => remove(i)}>
             <X className="size-3.5" />
           </Button>
         </div>
       ))}
 
-      <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={add}>
-        <Plus className="size-3.5" /> Add filter
-      </Button>
-      <Button size="sm" className="ml-auto h-7 text-xs" onClick={onApply}>
-        Apply
-      </Button>
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={add}>
+          <Plus className="size-3.5" /> Add filter
+        </Button>
+        <Button size="sm" className="h-7 text-xs" onClick={onApply}>
+          Apply
+        </Button>
+      </div>
     </div>
   )
 }
