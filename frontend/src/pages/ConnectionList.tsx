@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronRight, FolderOpen, Lock, Pencil, Plus, Server, Trash2 } from "lucide-react"
+import { ChevronRight, FileText, FolderOpen, Lock, Pencil, Plus, Server, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { ModeToggle } from "@/components/mode-toggle"
 import {
   Dialog,
@@ -54,6 +55,7 @@ const emptyInput: ConnectionInput = {
   port: 3306,
   username: "root",
   password: "",
+  file_path: "",
   default_database: "",
   sslmode: "prefer",
   read_only: false,
@@ -62,6 +64,15 @@ const emptyInput: ConnectionInput = {
   label: "",
   label_color: "",
   folder: "",
+  ssh_enabled: false,
+  ssh_host: "",
+  ssh_port: 22,
+  ssh_username: "",
+  ssh_auth_method: "password",
+  ssh_password: "",
+  ssh_key_path: "",
+  ssh_private_key: "",
+  ssh_passphrase: "",
 }
 
 // ── ConnectionList ────────────────────────────────────────────────────────────
@@ -167,7 +178,7 @@ export function ConnectionList({
             className="size-7 rounded-md object-contain"
             style={{ background: "#FDE3EA" }}
           />
-          <span className="text-sm font-semibold">Bigphant</span>
+          <span className="font-brand text-base font-semibold">Bigphant</span>
         </div>
         <div className="flex items-center gap-2">
           {license && (
@@ -275,11 +286,22 @@ export function ConnectionList({
                                 )}
                               </div>
                               <div className="text-muted-foreground flex items-center gap-1 text-xs">
-                                <Server className="size-3" />
-                                <span className="truncate">
-                                  {c.username}@{c.host}:{c.port}
-                                  {c.default_database && `/${c.default_database}`}
-                                </span>
+                                {c.driver === "sqlite" ? (
+                                  <>
+                                    <FileText className="size-3 shrink-0" />
+                                    <span className="truncate" dir="rtl" title={c.file_path}>
+                                      {c.file_path}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Server className="size-3" />
+                                    <span className="truncate">
+                                      {c.username}@{c.host}:{c.port}
+                                      {c.default_database && `/${c.default_database}`}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </button>
@@ -410,6 +432,7 @@ export function ConnectionFormDialog({
           port: connection.port,
           username: connection.username,
           password: "",
+          file_path: connection.file_path || "",
           default_database: connection.default_database,
           sslmode: connection.sslmode || "prefer",
           read_only: connection.read_only,
@@ -418,6 +441,17 @@ export function ConnectionFormDialog({
           label: connection.label,
           label_color: connection.label_color,
           folder: connection.folder,
+          // SSH secrets are never sent back, so they init blank and a blank
+          // value on save preserves whatever is stored (see store.Update).
+          ssh_enabled: connection.ssh_enabled,
+          ssh_host: connection.ssh_host,
+          ssh_port: connection.ssh_port || 22,
+          ssh_username: connection.ssh_username,
+          ssh_auth_method: connection.ssh_auth_method || "password",
+          ssh_key_path: connection.ssh_key_path,
+          ssh_password: "",
+          ssh_private_key: "",
+          ssh_passphrase: "",
         }
       : emptyInput
   )
@@ -431,6 +465,22 @@ export function ConnectionFormDialog({
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (!next) onClose?.()
+  }
+
+  async function handlePickFile() {
+    try {
+      const path = await api.pickSQLiteFile()
+      if (path) {
+        setInput((prev) => ({
+          ...prev,
+          file_path: path,
+          // Default the connection name to the file name when it is still blank.
+          name: prev.name.trim() ? prev.name : path.replace(/^.*\//, ""),
+        }))
+      }
+    } catch (e) {
+      toast.error("Could not open file picker", { description: String(e) })
+    }
   }
 
   async function test() {
@@ -461,7 +511,7 @@ export function ConnectionFormDialog({
       handleOpenChange(false)
       onSaved()
     } catch (e) {
-      const { code, message } = parseAppError(e)
+      const { message } = parseAppError(e)
       if (isPlanRequired(e) && onPlanRequired) onPlanRequired(message)
       else toast.error("Could not save connection", { description: message })
     } finally {
@@ -479,7 +529,7 @@ export function ConnectionFormDialog({
           <Plus className="size-3.5" /> New
         </button>
       )}
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit Connection" : "New Connection"}</DialogTitle>
           <DialogDescription>
@@ -489,7 +539,7 @@ export function ConnectionFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 py-2">
+        <div className="-mx-1 grid min-h-0 flex-1 gap-3 overflow-y-auto px-1 py-2">
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <Field label="Name">
@@ -503,6 +553,7 @@ export function ConnectionFormDialog({
                   set("driver", v)
                   if (v === "postgres") set("port", 5432 as any)
                   if (v === "mysql" || v === "mariadb") set("port", 3306 as any)
+                  if (v === "sqlite") set("ssh_enabled", false)
                 }}
               >
                 <SelectTrigger className="w-full">
@@ -512,44 +563,172 @@ export function ConnectionFormDialog({
                   <SelectItem value="mysql">MySQL</SelectItem>
                   <SelectItem value="mariadb">MariaDB</SelectItem>
                   <SelectItem value="postgres">PostgreSQL</SelectItem>
-                  <SelectItem value="sqlite" disabled>SQLite (soon)</SelectItem>
+                  <SelectItem value="sqlite">SQLite</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <Field label="Host">
-                <Input value={input.host} onChange={(e) => set("host", e.target.value)} placeholder="127.0.0.1" />
+          {input.driver === "sqlite" ? (
+            <Field label="Database file">
+              <div className="flex gap-2">
+                <Input
+                  value={input.file_path}
+                  onChange={(e) => set("file_path", e.target.value)}
+                  placeholder="/Users/you/data/app.db"
+                  className="font-mono text-xs"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handlePickFile}>
+                  Browse…
+                </Button>
+              </div>
+            </Field>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <Field label="Host">
+                    <Input value={input.host} onChange={(e) => set("host", e.target.value)} placeholder="127.0.0.1" />
+                  </Field>
+                </div>
+                <Field label="Port">
+                  <Input type="number" value={input.port} onChange={(e) => set("port", Number(e.target.value) || 0)} />
+                </Field>
+              </div>
+
+              <Field label="Username">
+                <Input value={input.username} onChange={(e) => set("username", e.target.value)} placeholder="root" />
               </Field>
+              <Field label={mode === "edit" ? "Password (blank = keep existing)" : "Password"}>
+                <Input type="password" value={input.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
+              </Field>
+              <Field label="Default database (optional)">
+                <Input value={input.default_database} onChange={(e) => set("default_database", e.target.value)} placeholder="myapp" />
+              </Field>
+
+              {input.driver === "postgres" && (
+                <Field label="SSL mode">
+                  <Select value={input.sslmode} onValueChange={(v) => set("sslmode", v)}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="disable">disable</SelectItem>
+                      <SelectItem value="prefer">prefer</SelectItem>
+                      <SelectItem value="require">require</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </>
+          )}
+
+          {input.driver !== "sqlite" && (
+          <div className="rounded-md border p-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="ssh" className="text-xs font-medium">
+                SSH tunnel
+              </Label>
+              <Switch
+                id="ssh"
+                checked={input.ssh_enabled}
+                onCheckedChange={(v) => set("ssh_enabled", v)}
+              />
             </div>
-            <Field label="Port">
-              <Input type="number" value={input.port} onChange={(e) => set("port", Number(e.target.value) || 0)} />
-            </Field>
+
+            {input.ssh_enabled && (
+              <div className="mt-3 grid gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <Field label="SSH host">
+                      <Input
+                        value={input.ssh_host}
+                        onChange={(e) => set("ssh_host", e.target.value)}
+                        placeholder="bastion.example.com"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="SSH port">
+                    <Input
+                      type="number"
+                      value={input.ssh_port}
+                      onChange={(e) => set("ssh_port", Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                </div>
+
+                <Field label="SSH username">
+                  <Input
+                    value={input.ssh_username}
+                    onChange={(e) => set("ssh_username", e.target.value)}
+                    placeholder="ec2-user"
+                  />
+                </Field>
+
+                <Field label="Authentication">
+                  <Select
+                    value={input.ssh_auth_method}
+                    onValueChange={(v) => set("ssh_auth_method", v)}
+                  >
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="password">Password</SelectItem>
+                      <SelectItem value="key">Private key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                {input.ssh_auth_method === "key" ? (
+                  <>
+                    <Field label="Private key file path">
+                      <Input
+                        value={input.ssh_key_path}
+                        onChange={(e) => set("ssh_key_path", e.target.value)}
+                        placeholder="~/.ssh/id_ed25519"
+                        className="font-mono text-xs"
+                      />
+                    </Field>
+                    <Field
+                      label={
+                        mode === "edit"
+                          ? "…or paste private key (blank = keep existing)"
+                          : "…or paste private key (PEM)"
+                      }
+                    >
+                      <Textarea
+                        value={input.ssh_private_key}
+                        onChange={(e) => set("ssh_private_key", e.target.value)}
+                        placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                        disabled={!!input.ssh_key_path.trim()}
+                        className="h-24 font-mono text-xs"
+                      />
+                    </Field>
+                    <Field label="Key passphrase (optional)">
+                      <Input
+                        type="password"
+                        value={input.ssh_passphrase}
+                        onChange={(e) => set("ssh_passphrase", e.target.value)}
+                        placeholder="••••••••"
+                      />
+                    </Field>
+                  </>
+                ) : (
+                  <Field
+                    label={
+                      mode === "edit"
+                        ? "SSH password (blank = keep existing)"
+                        : "SSH password"
+                    }
+                  >
+                    <Input
+                      type="password"
+                      value={input.ssh_password}
+                      onChange={(e) => set("ssh_password", e.target.value)}
+                      placeholder="••••••••"
+                    />
+                  </Field>
+                )}
+              </div>
+            )}
           </div>
-
-          <Field label="Username">
-            <Input value={input.username} onChange={(e) => set("username", e.target.value)} placeholder="root" />
-          </Field>
-          <Field label={mode === "edit" ? "Password (blank = keep existing)" : "Password"}>
-            <Input type="password" value={input.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
-          </Field>
-          <Field label="Default database (optional)">
-            <Input value={input.default_database} onChange={(e) => set("default_database", e.target.value)} placeholder="myapp" />
-          </Field>
-
-          {input.driver === "postgres" && (
-            <Field label="SSL mode">
-              <Select value={input.sslmode} onValueChange={(v) => set("sslmode", v)}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disable">disable</SelectItem>
-                  <SelectItem value="prefer">prefer</SelectItem>
-                  <SelectItem value="require">require</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
           )}
 
           <div className="grid grid-cols-2 gap-3">

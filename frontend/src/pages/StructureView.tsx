@@ -117,8 +117,9 @@ export function StructureView({
       if (isPlanRequired(e)) {
         onPlanRequired?.(parseAppError(e).message)
       } else if (isConfirmationRequired(e)) {
-        const { sql } = parseAppError(e)
-        setPreviewSql(sql ? sql.split(";\n") : previewSql)
+        // previewSql is already populated from the preview call above; the SQL is
+        // not recoverable from the stringified Wails error (only code + message
+        // cross the boundary), so keep the existing preview and flag it destructive.
         setPreviewDestructive(true)
       } else {
         toast.error("Alter failed", { description: parseAppError(e).message })

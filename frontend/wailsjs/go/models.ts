@@ -1,3 +1,24 @@
+export namespace ai {
+	
+	export class Model {
+	    id: string;
+	    name: string;
+	    context_length: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Model(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.context_length = source["context_length"];
+	    }
+	}
+
+}
+
 export namespace connections {
 	
 	export class ConnectionInput {
@@ -7,6 +28,7 @@ export namespace connections {
 	    port: number;
 	    username: string;
 	    password: string;
+	    file_path: string;
 	    default_database: string;
 	    sslmode: string;
 	    read_only: boolean;
@@ -15,6 +37,15 @@ export namespace connections {
 	    label: string;
 	    label_color: string;
 	    folder: string;
+	    ssh_enabled: boolean;
+	    ssh_host: string;
+	    ssh_port: number;
+	    ssh_username: string;
+	    ssh_auth_method: string;
+	    ssh_password: string;
+	    ssh_key_path: string;
+	    ssh_private_key: string;
+	    ssh_passphrase: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionInput(source);
@@ -28,6 +59,7 @@ export namespace connections {
 	        this.port = source["port"];
 	        this.username = source["username"];
 	        this.password = source["password"];
+	        this.file_path = source["file_path"];
 	        this.default_database = source["default_database"];
 	        this.sslmode = source["sslmode"];
 	        this.read_only = source["read_only"];
@@ -36,6 +68,15 @@ export namespace connections {
 	        this.label = source["label"];
 	        this.label_color = source["label_color"];
 	        this.folder = source["folder"];
+	        this.ssh_enabled = source["ssh_enabled"];
+	        this.ssh_host = source["ssh_host"];
+	        this.ssh_port = source["ssh_port"];
+	        this.ssh_username = source["ssh_username"];
+	        this.ssh_auth_method = source["ssh_auth_method"];
+	        this.ssh_password = source["ssh_password"];
+	        this.ssh_key_path = source["ssh_key_path"];
+	        this.ssh_private_key = source["ssh_private_key"];
+	        this.ssh_passphrase = source["ssh_passphrase"];
 	    }
 	}
 	export class ConnectionMeta {
@@ -47,6 +88,7 @@ export namespace connections {
 	    host: string;
 	    port: number;
 	    username: string;
+	    file_path: string;
 	    default_database: string;
 	    sslmode: string;
 	    read_only: boolean;
@@ -55,6 +97,14 @@ export namespace connections {
 	    label: string;
 	    label_color: string;
 	    folder: string;
+	    ssh_enabled: boolean;
+	    ssh_host: string;
+	    ssh_port: number;
+	    ssh_username: string;
+	    ssh_auth_method: string;
+	    ssh_key_path: string;
+	    ai_enabled: boolean;
+	    ai_mode: string;
 	    locked?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -70,6 +120,7 @@ export namespace connections {
 	        this.host = source["host"];
 	        this.port = source["port"];
 	        this.username = source["username"];
+	        this.file_path = source["file_path"];
 	        this.default_database = source["default_database"];
 	        this.sslmode = source["sslmode"];
 	        this.read_only = source["read_only"];
@@ -78,6 +129,14 @@ export namespace connections {
 	        this.label = source["label"];
 	        this.label_color = source["label_color"];
 	        this.folder = source["folder"];
+	        this.ssh_enabled = source["ssh_enabled"];
+	        this.ssh_host = source["ssh_host"];
+	        this.ssh_port = source["ssh_port"];
+	        this.ssh_username = source["ssh_username"];
+	        this.ssh_auth_method = source["ssh_auth_method"];
+	        this.ssh_key_path = source["ssh_key_path"];
+	        this.ai_enabled = source["ai_enabled"];
+	        this.ai_mode = source["ai_mode"];
 	        this.locked = source["locked"];
 	    }
 	
@@ -409,6 +468,110 @@ export namespace license {
 
 export namespace main {
 	
+	export class AIChatMessage {
+	    role: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIChatMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.content = source["content"];
+	    }
+	}
+	export class AIChatRequest {
+	    database: string;
+	    messages: AIChatMessage[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AIChatRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.database = source["database"];
+	        this.messages = this.convertValues(source["messages"], AIChatMessage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AIChatResponse {
+	    answer: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIChatResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.answer = source["answer"];
+	    }
+	}
+	export class AIConfig {
+	    has_key: boolean;
+	    model: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.has_key = source["has_key"];
+	        this.model = source["model"];
+	    }
+	}
+	export class AIEnableResult {
+	    mode: string;
+	    context_generated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIEnableResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.context_generated = source["context_generated"];
+	    }
+	}
+	export class AIStatus {
+	    has_key: boolean;
+	    enabled: boolean;
+	    mode: string;
+	    has_context: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.has_key = source["has_key"];
+	        this.enabled = source["enabled"];
+	        this.mode = source["mode"];
+	        this.has_context = source["has_context"];
+	    }
+	}
 	export class AlterPreview {
 	    sql: string[];
 	    destructive: boolean;

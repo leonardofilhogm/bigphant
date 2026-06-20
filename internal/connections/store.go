@@ -107,12 +107,30 @@ func (s *Store) Update(id string, in ConnectionInput) (ConnectionMeta, error) {
 	if c.Password == "" {
 		c.Password = existing.Password
 	}
+	// SSH secrets are write-only from the form's perspective (never sent back to
+	// the frontend), so a blank value on update means "keep what's stored".
+	if c.SSHPassword == "" {
+		c.SSHPassword = existing.SSHPassword
+	}
+	if c.SSHPrivateKey == "" {
+		c.SSHPrivateKey = existing.SSHPrivateKey
+	}
+	if c.SSHPassphrase == "" {
+		c.SSHPassphrase = existing.SSHPassphrase
+	}
 	// edit_mode is set from the workspace topbar (SetEditMode), not the
 	// New/Edit form, which never sends it — a blank value preserves the
 	// stored choice instead of resetting it to the default.
 	if c.EditMode == "" {
 		c.EditMode = existing.EditMode
 	}
+	// AI Assistant fields are provisioned via SetAIUser, never via the form, so
+	// the form payload always carries their zero values — preserve the stored
+	// ones so editing a connection does not silently disable AI.
+	c.AIEnabled = existing.AIEnabled
+	c.AIMode = existing.AIMode
+	c.AIUsername = existing.AIUsername
+	c.AIPassword = existing.AIPassword
 	if err := s.save(c); err != nil {
 		return ConnectionMeta{}, err
 	}
@@ -129,6 +147,30 @@ func (s *Store) SetEditMode(id, mode string) (ConnectionMeta, error) {
 		return ConnectionMeta{}, err
 	}
 	c.EditMode = mode
+	c.UpdatedAt = time.Now().UTC()
+	if err := s.save(c); err != nil {
+		return ConnectionMeta{}, err
+	}
+	return c.Meta(), nil
+}
+
+// SetAIUser persists the AI Assistant enablement and (for "db_user" mode) the
+// dedicated read-only credentials Bigphant provisioned, leaving every other
+// field untouched. The credentials are secrets: they live only in the encrypted
+// file and are never projected into ConnectionMeta. Passing an empty username
+// keeps the previously stored one (so re-enabling in app_layer mode does not
+// wipe an earlier db_user credential).
+func (s *Store) SetAIUser(id, mode, username, password string) (ConnectionMeta, error) {
+	c, err := s.Get(id)
+	if err != nil {
+		return ConnectionMeta{}, err
+	}
+	c.AIEnabled = true
+	c.AIMode = mode
+	if username != "" {
+		c.AIUsername = username
+		c.AIPassword = password
+	}
 	c.UpdatedAt = time.Now().UTC()
 	if err := s.save(c); err != nil {
 		return ConnectionMeta{}, err

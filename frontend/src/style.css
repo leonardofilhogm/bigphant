@@ -3,6 +3,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Bundled fonts (no runtime CDN fetch — see CLAUDE.md no-external-network constraint) */
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/fonts/nunito-v32-latin-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Elms Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/elms-sans-v7-latin-600.woff2") format("woff2");
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -73,6 +90,9 @@
 }
 
 @theme inline {
+  --font-sans:
+    "Nunito", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-brand: "Elms Sans", "Nunito", sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -116,6 +136,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
   }
 }
 

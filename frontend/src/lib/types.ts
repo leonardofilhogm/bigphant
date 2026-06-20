@@ -11,6 +11,8 @@ export interface ConnectionMeta {
   host: string
   port: number
   username: string
+  // SQLite only: path to the database file (non-secret).
+  file_path: string
   default_database: string
   sslmode: string
   read_only: boolean
@@ -21,9 +23,21 @@ export interface ConnectionMeta {
   label: string
   label_color: string
   folder: string
+  // SSH tunnel metadata (non-secret); secrets are never sent to the frontend.
+  ssh_enabled: boolean
+  ssh_host: string
+  ssh_port: number
+  ssh_username: string
+  ssh_auth_method: string
+  ssh_key_path: string
+  // AI Assistant status (non-secret).
+  ai_enabled: boolean
+  ai_mode: string // "db_user" | "app_layer" | ""
 }
 
 export type TransactionMode = "auto_commit" | "explicit_commit"
+
+export type SSHAuthMethod = "password" | "key"
 
 // Row-editing method, persisted per connection:
 //  - inline:     edit cells in place; the side panel is not used.
@@ -38,6 +52,8 @@ export interface ConnectionInput {
   port: number
   username: string
   password: string
+  // SQLite only: path to the database file.
+  file_path: string
   default_database: string
   sslmode: string
   read_only: boolean
@@ -47,6 +63,16 @@ export interface ConnectionInput {
   label: string
   label_color: string
   folder: string
+  // SSH tunnel. Secrets are write-only: blank on edit means "keep stored value".
+  ssh_enabled: boolean
+  ssh_host: string
+  ssh_port: number
+  ssh_username: string
+  ssh_auth_method: string
+  ssh_password: string
+  ssh_key_path: string
+  ssh_private_key: string
+  ssh_passphrase: string
 }
 
 export interface TableSummary {
@@ -209,4 +235,50 @@ export interface RawResult {
   affected_rows: number
   duration_ms: number
   status: string // "ok" | "destructive_blocked" | "destructive_confirm"
+}
+
+// --- AI Assistant ---
+
+export interface AIConfig {
+  has_key: boolean
+  model: string
+}
+
+export interface AIModel {
+  id: string
+  name: string
+  context_length: number
+}
+
+export interface AIStatus {
+  has_key: boolean
+  enabled: boolean
+  mode: string // "db_user" | "app_layer" | ""
+  has_context: boolean
+}
+
+export interface AIEnableResult {
+  mode: string // "db_user" | "app_layer"
+  context_generated: boolean
+}
+
+export interface AIChatMessage {
+  role: string // "user" | "assistant"
+  content: string
+}
+
+export interface AIChatRequest {
+  database: string
+  messages: AIChatMessage[]
+}
+
+export interface AIChatResponse {
+  answer: string
+}
+
+// Emitted by the backend during AIChat for each SQL the assistant runs.
+export interface AIToolEvent {
+  sql: string
+  row_count: number
+  error?: string
 }

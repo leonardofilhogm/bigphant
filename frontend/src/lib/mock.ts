@@ -10,12 +10,21 @@ import type {
 
 const defaultConnFields = {
   driver: "mysql",
+  file_path: "",
   sslmode: "prefer",
   transaction_mode: "auto_commit",
   edit_mode: "mixed",
   label: "",
   label_color: "",
   folder: "",
+  ssh_enabled: false,
+  ssh_host: "",
+  ssh_port: 22,
+  ssh_username: "",
+  ssh_auth_method: "password",
+  ssh_key_path: "",
+  ai_enabled: false,
+  ai_mode: "",
 }
 
 export const mockConnections: ConnectionMeta[] = [

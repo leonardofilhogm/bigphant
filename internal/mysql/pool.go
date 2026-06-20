@@ -10,9 +10,11 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"bigphant/internal/connections"
+	"bigphant/internal/sshtunnel"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -28,7 +30,12 @@ type Conn struct {
 	mu      sync.Mutex
 	flavor  string // "MySQL" | "MariaDB"
 	version string // clean numeric version, e.g. "8.0.36" or "11.4.2"
+	tunnel  *sshtunnel.Tunnel
 }
+
+// dialerSeq gives each SSH-tunneled pool a unique registered network name, so
+// go-sql-driver looks up the correct per-connection dialer at dial time.
+var dialerSeq atomic.Uint64
 
 // mysqlConfig builds a mysql.Config used to open a connector. We avoid
 // FormatDSN + sql.Open because go-sql-driver writes the password into the DSN
@@ -56,8 +63,28 @@ func Open(c connections.Connection) (*Conn, error) {
 	log.Printf("[mysql.Open] user=%q host=%s:%d db=%q pwd_len=%d pwd_sha256_8=%s",
 		c.Username, c.Host, c.Port, c.DefaultDatabase, len(c.Password), hex.EncodeToString(sum[:4]))
 
-	connector, err := mysql.NewConnector(mysqlConfig(c))
+	cfg := mysqlConfig(c)
+
+	// When an SSH tunnel is configured, open it first and route the driver's
+	// TCP dial through it by registering a per-pool dialer under a unique net
+	// name. The pool owns the tunnel and closes it in Conn.Close.
+	var tunnel *sshtunnel.Tunnel
+	if c.SSHEnabled {
+		t, err := sshtunnel.Open(c)
+		if err != nil {
+			return nil, err
+		}
+		netName := "ssh-mysql-" + strconv.FormatUint(dialerSeq.Add(1), 10)
+		mysql.RegisterDialContext(netName, func(ctx context.Context, addr string) (net.Conn, error) {
+			return t.DialContext(ctx, "tcp", addr)
+		})
+		cfg.Net = netName
+		tunnel = t
+	}
+
+	connector, err := mysql.NewConnector(cfg)
 	if err != nil {
+		tunnel.Close()
 		return nil, err
 	}
 	db := sql.OpenDB(connector)
@@ -69,10 +96,11 @@ func Open(c connections.Connection) (*Conn, error) {
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
+		tunnel.Close()
 		return nil, err
 	}
 	flavor, version := detectFlavor(db)
-	return &Conn{DB: db, Meta: c.Meta(), txMode: c.TransactionMode, flavor: flavor, version: version}, nil
+	return &Conn{DB: db, Meta: c.Meta(), txMode: c.TransactionMode, flavor: flavor, version: version, tunnel: tunnel}, nil
 }
 
 // Ping verifies the pool can reach the server.
@@ -91,7 +119,7 @@ func Ping(c connections.Connection) error {
 	if err != nil {
 		return err
 	}
-	return conn.DB.Close()
+	return conn.Close() // closes the pool and any SSH tunnel.
 }
 
 // activeTx returns the open transaction, or nil (thread-safe).
@@ -157,5 +185,9 @@ func (c *Conn) Close() error {
 		return nil
 	}
 	c.Rollback() //nolint — best effort
-	return c.DB.Close()
+	err := c.DB.Close()
+	if c.tunnel != nil {
+		c.tunnel.Close()
+	}
+	return err
 }

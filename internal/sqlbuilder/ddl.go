@@ -71,9 +71,101 @@ func BuildAlterTable(d Dialect, req AlterTableRequest) (stmts []string, destruct
 		return buildAlterMySQL(d, req, destructive)
 	case PostgresDialect:
 		return buildAlterPostgres(d, req, destructive)
+	case SQLiteDialect:
+		return buildAlterSQLite(d, req, destructive)
 	default:
 		return nil, false, fmt.Errorf("unsupported dialect")
 	}
+}
+
+// buildAlterSQLite emits DDL for SQLite. SQLite's ALTER TABLE is limited to one
+// operation per statement and supports only ADD/DROP/RENAME COLUMN and RENAME
+// TABLE; index changes are expressed as standalone CREATE/DROP INDEX. Operations
+// SQLite can't perform without a full table rebuild (modify column, primary keys,
+// foreign keys, check constraints, defaults) are rejected with a clear message.
+func buildAlterSQLite(d Dialect, req AlterTableRequest, destructive bool) ([]string, bool, error) {
+	qtable := d.Qualified(req.Database, req.Table)
+	var stmts []string
+
+	for _, op := range req.Ops {
+		switch op.Kind {
+		case "rename_table":
+			if op.NewName == "" {
+				return nil, destructive, fmt.Errorf("rename_table: new_name is required")
+			}
+			stmts = append(stmts, "ALTER TABLE "+qtable+" RENAME TO "+d.QuoteIdent(op.NewName))
+		case "add_column":
+			if op.Column == nil {
+				return nil, destructive, fmt.Errorf("add_column: column is required")
+			}
+			def, err := sqliteColumnDef(d, op.Column)
+			if err != nil {
+				return nil, destructive, err
+			}
+			stmts = append(stmts, "ALTER TABLE "+qtable+" ADD COLUMN "+def)
+		case "rename_column":
+			if op.OldName == "" || op.NewName == "" {
+				return nil, destructive, fmt.Errorf("rename_column: old_name and new_name are required")
+			}
+			stmts = append(stmts, "ALTER TABLE "+qtable+" RENAME COLUMN "+d.QuoteIdent(op.OldName)+" TO "+d.QuoteIdent(op.NewName))
+		case "drop_column":
+			if op.OldName == "" {
+				return nil, destructive, fmt.Errorf("drop_column: old_name is required")
+			}
+			stmts = append(stmts, "ALTER TABLE "+qtable+" DROP COLUMN "+d.QuoteIdent(op.OldName))
+		case "add_index", "add_unique":
+			idx := op.Index
+			if idx == nil || len(idx.Columns) == 0 {
+				return nil, destructive, fmt.Errorf("%s: index columns are required", op.Kind)
+			}
+			unique := op.Kind == "add_unique" || idx.Unique
+			name := idx.Name
+			if name == "" {
+				name = "idx_" + strings.Join(idx.Columns, "_")
+			}
+			prefix := "CREATE INDEX"
+			if unique {
+				prefix = "CREATE UNIQUE INDEX"
+			}
+			stmts = append(stmts, fmt.Sprintf("%s %s ON %s (%s)",
+				prefix, d.QuoteIdent(name), qtable, strings.Join(quoteIdents(d, idx.Columns), ", ")))
+		case "drop_index":
+			if op.Name == "" {
+				return nil, destructive, fmt.Errorf("drop_index: name is required")
+			}
+			stmts = append(stmts, "DROP INDEX "+d.QuoteIdent(op.Name))
+		case "modify_column", "add_primary_key", "drop_primary_key",
+			"add_foreign_key", "drop_foreign_key", "set_default", "drop_default",
+			"add_check", "drop_constraint":
+			return nil, destructive, fmt.Errorf("SQLite does not support the %q operation; it requires rebuilding the table, which Bigphant does not do automatically", op.Kind)
+		default:
+			return nil, destructive, fmt.Errorf("unsupported operation kind: %s", op.Kind)
+		}
+	}
+	return stmts, destructive, nil
+}
+
+// sqliteColumnDef builds a column definition for ADD COLUMN. SQLite stores values
+// with type affinity, so any validated type token is accepted.
+func sqliteColumnDef(d Dialect, col *ColumnDef) (string, error) {
+	if col.Name == "" {
+		return "", fmt.Errorf("column name is required")
+	}
+	if err := validateTypeToken(col.Type); err != nil {
+		return "", err
+	}
+	parts := []string{d.QuoteIdent(col.Name), col.Type}
+	if !col.Nullable {
+		parts = append(parts, "NOT NULL")
+	}
+	if col.HasDefault {
+		def, err := formatDefault(col.Default, col.DefaultIsExpr)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, "DEFAULT", def)
+	}
+	return strings.Join(parts, " "), nil
 }
 
 func buildAlterMySQL(d Dialect, req AlterTableRequest, destructive bool) ([]string, bool, error) {

@@ -136,7 +136,6 @@ These are not part of the PoC. Do not implement them, even if they seem like nat
 
 - Any database engine other than MySQL (Postgres, SQLite, MSSQL, MongoDB, etc.)
 - Any OS other than macOS (no Windows or Linux builds)
-- SSH tunneling
 - SSL/TLS connection options (will rely on driver defaults)
 - Master password to unlock the app
 - Foreign key navigation (click FK value → jump to referenced row)
@@ -254,6 +253,16 @@ CREATE  README.md                                     — build & run instructio
   "default_database": "myapp",
   "read_only": false,
   "transaction_mode": "auto_commit",
+
+  "ssh_enabled": false,
+  "ssh_host": "bastion.example.com",
+  "ssh_port": 22,
+  "ssh_username": "ec2-user",
+  "ssh_auth_method": "password",
+  "ssh_password": "<plaintext inside encrypted file>",
+  "ssh_private_key": "<PEM, plaintext inside encrypted file>",
+  "ssh_passphrase": "<plaintext inside encrypted file>",
+
   "created_at": "2026-05-23T10:00:00Z",
   "updated_at": "2026-05-23T10:00:00Z"
 }
@@ -261,6 +270,17 @@ CREATE  README.md                                     — build & run instructio
 
 File path: `~/Library/Application Support/Bigphant/connections/<id>.enc`
 Encryption: AES-256-GCM. Nonce prepended to ciphertext.
+
+**SSH tunnel (added post-PRD).** When `ssh_enabled`, the Go backend opens an SSH
+connection (`internal/sshtunnel`) and routes the DB pool's TCP dial through it —
+MySQL via `mysql.RegisterDialContext`, Postgres via a pgx `DialFunc` registered
+with `stdlib.RegisterConnConfig`. `ssh_auth_method` is `"password"` or `"key"`;
+the three SSH secrets (`ssh_password`, `ssh_private_key`, `ssh_passphrase`) are
+encrypted on disk and, like the DB password, never sent to the frontend — they
+are stripped from `ConnectionMeta`, and a blank value on update preserves the
+stored one. **Known weakness:** the SSH host key is not verified
+(`ssh.InsecureIgnoreHostKey`), mirroring the static-key weakness in §5; real
+`known_hosts` verification is a follow-up.
 
 ### 7.2 App settings (single plaintext JSON)
 
@@ -598,3 +618,26 @@ The agent **must not**:
 - Code signing: enroll in Apple Developer Program before v0.2 release?
 - Decide which engine comes next: PostgreSQL is the obvious choice; confirm.
 - Begin scoping the agentic mode separately as a v0.3+ epic.
+
+---
+
+## 15. v0.4.0 — AI Assistant (delivers the §14 agentic epic)
+
+Bring-your-own-key agentic chat that answers plain-language questions about a database.
+
+- **Provider:** OpenRouter only — one OpenAI-compatible client at `https://openrouter.ai/api/v1`; the user supplies their key and picks any model (live list from `GET /models`). This is the single sanctioned AI endpoint. A token-metered "AI plan" (via `license.FeatAI`) is future scope.
+- **Read-only by construction:** every AI query runs the `run_readonly_sql` tool against a dedicated read-only path. On opt-in, Bigphant provisions a SELECT-only DB user (`internal/ai/rouser.go`); if the connection lacks privilege it falls back to app-layer read-only enforcement on a separate pool. SELECT-only is also enforced in-app via `sqlbuilder.IsReadOnly`.
+- **Secrets:** the OpenRouter key is encrypted on disk (`ai.enc`) and never sent to the frontend (only `has_key`). AI read-only credentials are stored in the connection's encrypted file like the DB/SSH secrets.
+- **Context file:** auto-generated, user-editable Markdown per database at `~/Library/Application Support/Bigphant/context/<connID>/<database>.md`; the assistant always reads the current file. "Regenerate" re-syncs from the live schema.
+- **Backend:** `internal/ai` (client, agentic loop, config, RO-user provisioning) + `internal/dbcontext` (generate/store). Wails methods: `GetAIConfig`, `SetAIConfig`, `ListAIModels`, `EnableAIAssistant`, `AIAssistantStatus`, `GenerateDBContext`, `GetDBContext`, `SaveDBContext`, `AIChat`. `AIChat` emits `ai:tool`/`ai:done` runtime events so the UI shows each query the model runs.
+- **Frontend:** an "AI Assistant" workspace tab (chat + inline progress), the opt-in consent dialog, the context editor, and an AI section in Settings (key + model). Reuses `DataGrid`, the `Settings` `Row` pattern, and `lib/api.ts`.
+
+## 16. v0.4.0 — SQLite engine
+
+A third engine behind the `internal/engine.Engine` interface, alongside MySQL/MariaDB and PostgreSQL.
+
+- **Driver:** pure-Go `modernc.org/sqlite` (no CGO) so `wails build -platform darwin/universal` needs no C toolchain. New package `internal/sqlite` implements the engine; `sqlbuilder.SQLiteDialect` provides quoting (double-quote idents) and `?` placeholders.
+- **Connection = a file.** SQLite connections store a `FilePath` (non-secret) instead of host/port/user/password. The connection form hides the network/SSL/SSH fields and adds a "Database file" input plus a native picker (`PickSQLiteFile`). Opening a missing file errors rather than silently creating an empty database.
+- **No namespace.** One file is one database: `ListDatabases` returns a single entry (the file name), `ListSchemas` is empty, and `database` arguments are ignored.
+- **Read-only by construction for AI.** SQLite has no database users, so `EnableAIAssistant` always falls back to `app_layer`; the read-only pool additionally opens the file with `mode=ro` + `PRAGMA query_only`. `internal/dbcontext` works unchanged (it is generic over the engine interface).
+- **Limited `ALTER TABLE`.** `buildAlterSQLite` supports ADD/DROP/RENAME COLUMN, RENAME TABLE, and standalone CREATE/DROP INDEX; modify-column, primary/foreign keys, checks, and defaults are rejected with a clear message (they would require a full table rebuild). No SSH tunnel (the file is local).

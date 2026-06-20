@@ -78,8 +78,13 @@ func exportFilter(format string) runtime.FileFilter {
 // exportDialect picks the quoting rules matching the active connection so SQL
 // exports are valid for the target engine.
 func (a *App) exportDialect() sqlbuilder.Dialect {
-	if a.conn != nil && a.conn.Flavor() == "PostgreSQL" {
-		return sqlbuilder.PostgresDialect{}
+	if a.conn != nil {
+		switch a.conn.Flavor() {
+		case "PostgreSQL":
+			return sqlbuilder.PostgresDialect{}
+		case "SQLite":
+			return sqlbuilder.SQLiteDialect{}
+		}
 	}
 	return sqlbuilder.MySQLDialect{}
 }

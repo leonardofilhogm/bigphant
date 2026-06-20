@@ -17,10 +17,15 @@ type AlterPreview struct {
 
 func (a *App) alterDialect() sqlbuilder.Dialect {
 	if a.conn != nil && a.conn.Flavor() != "" {
-		// Postgres Conn returns "PostgreSQL"; MySQL returns "MySQL" or "MariaDB".
+		// Postgres Conn returns "PostgreSQL"; SQLite returns "SQLite"; MySQL
+		// returns "MySQL" or "MariaDB". The preview dialect must match the dialect
+		// the engine uses to execute, or the previewed SQL will not match reality.
 		fl := strings.ToLower(a.conn.Flavor())
 		if strings.Contains(fl, "postgres") {
 			return sqlbuilder.PostgresDialect{}
+		}
+		if strings.Contains(fl, "sqlite") {
+			return sqlbuilder.SQLiteDialect{}
 		}
 	}
 	return sqlbuilder.MySQLDialect{}

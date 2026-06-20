@@ -27,6 +27,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -36,7 +42,7 @@ import {
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { formatCount } from "@/lib/format"
-import { entityTabId, EntityDefinitionView } from "@/components/EntityDefinition"
+import { entityTabId } from "@/components/EntityDefinition"
 import type { Entity, TableSummary } from "@/lib/types"
 import type { LucideIcon } from "lucide-react"
 
@@ -370,6 +376,7 @@ export function Sidebar({
                   Tables ({filtered.length})
                 </button>
                 {!collapsed.tables && (
+                  <TooltipProvider delayDuration={400}>
                   <ul>
                     {filtered.map((t) => (
                       <ContextMenu key={t.name}>
@@ -378,15 +385,15 @@ export function Sidebar({
                             <button
                               onClick={() => onOpenTable(t.name)}
                               className={cn(
-                                "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors",
+                                "flex w-full items-center gap-2 rounded py-1 pl-2 pr-3 text-left text-xs transition-colors",
                                 activeTable === t.name
                                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                   : "hover:bg-sidebar-accent/50"
                               )}
                             >
                               <Table2 className="text-muted-foreground size-3.5 shrink-0" />
-                              <span className="flex-1 truncate">{t.name}</span>
-                              <span className="text-muted-foreground tabular-nums text-[10px]">
+                              <TableLabel name={t.name} />
+                              <span className="text-muted-foreground shrink-0 tabular-nums text-[10px]">
                                 {formatCount(t.row_count)}
                               </span>
                             </button>
@@ -414,6 +421,7 @@ export function Sidebar({
                       </ContextMenu>
                     ))}
                   </ul>
+                  </TooltipProvider>
                 )}
               </section>
             )}
@@ -489,5 +497,33 @@ export function Sidebar({
         )}
       </ScrollArea>
     </div>
+  )
+}
+
+// Number of trailing characters kept intact when a table name is long enough to
+// need middle truncation (so e.g. "agent_conversation_messages" renders as
+// "agent_conv…_messages" instead of dropping the meaningful suffix).
+const TABLE_NAME_TAIL = 8
+
+// TableLabel renders a table name that fits the available width. Short names
+// render plainly; long names are middle-truncated (head ellipsizes, tail stays)
+// and get a tooltip with the full name. Wrapped in min-w-0 so it shrinks inside
+// the flex row and never pushes the row count off the right edge.
+function TableLabel({ name }: { name: string }) {
+  if (name.length <= TABLE_NAME_TAIL + 4) {
+    return <span className="min-w-0 flex-1 truncate">{name}</span>
+  }
+  const head = name.slice(0, name.length - TABLE_NAME_TAIL)
+  const tail = name.slice(name.length - TABLE_NAME_TAIL)
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex min-w-0 flex-1">
+          <span className="min-w-0 truncate">{head}</span>
+          <span className="shrink-0">{tail}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right">{name}</TooltipContent>
+    </Tooltip>
   )
 }

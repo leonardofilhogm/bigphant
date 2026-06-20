@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type LucideIcon } from "react"
+import { useCallback, useEffect, useState } from "react"
+import type { LucideIcon } from "lucide-react"
 import { Database, TableProperties, Terminal, Wrench } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -83,7 +84,9 @@ export function WelcomeScreen({ onDone }: WelcomeScreenProps) {
       <div className="w-full max-w-md space-y-8">
         <div className="welcome-anim flex flex-col items-center gap-2 text-center">
           <Logo className="h-10" />
-          <h1 className="welcome-anim-delay text-xl font-semibold">Welcome to Bigphant</h1>
+          <h1 className="welcome-anim-delay text-xl font-semibold">
+            Welcome to <span className="font-brand font-semibold">Bigphant</span>
+          </h1>
           <p className="text-muted-foreground text-sm">A fast, native database client for macOS</p>
         </div>
 

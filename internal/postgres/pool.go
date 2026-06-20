@@ -10,7 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+
 	"bigphant/internal/connections"
+	"bigphant/internal/sshtunnel"
 )
 
 // Conn wraps an open *sql.DB pool together with the metadata of the connection
@@ -23,6 +27,9 @@ type Conn struct {
 	tx      *sql.Tx
 	mu      sync.Mutex
 	version string // e.g. "16.2"
+
+	tunnel        *sshtunnel.Tunnel
+	registeredDSN string // non-empty when opened via a registered pgx ConnConfig (SSH tunnel)
 }
 
 func dsn(c connections.Connection, sslmode string) (string, error) {
@@ -47,14 +54,45 @@ func dsn(c connections.Connection, sslmode string) (string, error) {
 
 // Open creates a connection pool and verifies it with a ping.
 func Open(c connections.Connection, sslmode string) (*Conn, error) {
-	dsn, err := dsn(c, sslmode)
+	dsnStr, err := dsn(c, sslmode)
 	if err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
+
+	var (
+		db            *sql.DB
+		tunnel        *sshtunnel.Tunnel
+		registeredDSN string
+	)
+	if c.SSHEnabled {
+		// Tunnel pgx's TCP dial through SSH. pgx can't take a DialFunc from a
+		// plain DSN, so we register a ConnConfig and open via the returned
+		// handle; the registration is released in Conn.Close.
+		t, err := sshtunnel.Open(c)
+		if err != nil {
+			return nil, err
+		}
+		connConfig, err := pgx.ParseConfig(dsnStr)
+		if err != nil {
+			t.Close()
+			return nil, err
+		}
+		connConfig.DialFunc = t.DialContext
+		registeredDSN = stdlib.RegisterConnConfig(connConfig)
+		db, err = sql.Open("pgx", registeredDSN)
+		if err != nil {
+			stdlib.UnregisterConnConfig(registeredDSN)
+			t.Close()
+			return nil, err
+		}
+		tunnel = t
+	} else {
+		db, err = sql.Open("pgx", dsnStr)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	db.SetMaxOpenConns(8)
 	db.SetMaxIdleConns(4)
 	db.SetConnMaxLifetime(time.Hour)
@@ -63,11 +101,15 @@ func Open(c connections.Connection, sslmode string) (*Conn, error) {
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
+		if registeredDSN != "" {
+			stdlib.UnregisterConnConfig(registeredDSN)
+		}
+		tunnel.Close()
 		return nil, err
 	}
 
 	version := detectVersion(db)
-	return &Conn{DB: db, Meta: c.Meta(), txMode: c.TransactionMode, version: version}, nil
+	return &Conn{DB: db, Meta: c.Meta(), txMode: c.TransactionMode, version: version, tunnel: tunnel, registeredDSN: registeredDSN}, nil
 }
 
 // Ping verifies the pool can reach the server.
@@ -134,10 +176,16 @@ func (c *Conn) Close() error {
 		return nil
 	}
 	c.Rollback() // best effort
-	return c.DB.Close()
+	err := c.DB.Close()
+	if c.registeredDSN != "" {
+		stdlib.UnregisterConnConfig(c.registeredDSN)
+	}
+	if c.tunnel != nil {
+		c.tunnel.Close()
+	}
+	return err
 }
 
 func (c *Conn) Version() (string, error) { return c.version, nil }
 
 func (c *Conn) Flavor() string { return "PostgreSQL" }
-

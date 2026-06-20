@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, Braces, ChevronsUpDown } from "lucide-react"
+import { ArrowDown, ArrowUp, Braces, ChevronsUpDown, Code2, FileJson } from "lucide-react"
+import { toast } from "sonner"
 
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
+import { rowToInsert, rowToJSON } from "@/lib/rowExport"
 import type { Column, EditMode } from "@/lib/types"
 
 // In "mixed" mode a single click edits inline while a double click opens the
@@ -30,6 +38,9 @@ interface DataGridProps {
   // Row-editing method (persisted per connection). Decides whether a click
   // edits inline, opens the side panel, or both. See EditMode in lib/types.
   editMode: EditMode
+  // Table name used when building the "Copy as SQL INSERT" statement. Defaults
+  // to "table" for grids without a single source table (e.g. raw SQL results).
+  tableName?: string
   onToggleRow: (index: number) => void
   onToggleAll: () => void
   /** Opens the side panel for a row (used by mixed/side_panel modes). */
@@ -55,9 +66,12 @@ export function DataGrid({
   onToggleAll,
   onRowClick,
   onCellCommit,
+  tableName = "table",
 }: DataGridProps) {
   const [editing, setEditing] = useState<{ row: number; col: number; orig: string } | null>(null)
   const [draft, setDraft] = useState("")
+  // Index of the row the context menu was last opened on.
+  const [contextRow, setContextRow] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   // Pending single-click timer for "mixed" mode (cleared by a double click).
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -139,6 +153,22 @@ export function DataGrid({
     setEditing(null)
   }
 
+  async function copyRow(format: "json" | "insert") {
+    if (contextRow == null) return
+    const row = rows[contextRow]
+    if (!row) return
+    const text =
+      format === "json"
+        ? rowToJSON(columns, row)
+        : rowToInsert(tableName, columns, row)
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(format === "json" ? "Row copied as JSON" : "Row copied as SQL INSERT")
+    } catch (e) {
+      toast.error("Could not copy to clipboard", { description: String(e) })
+    }
+  }
+
   return (
     <div ref={containerRef} className="relative h-full overflow-auto">
       <table className="border-separate border-spacing-0 text-xs">
@@ -180,6 +210,8 @@ export function DataGrid({
             ))}
           </tr>
         </thead>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
         <tbody>
           {rows.map((row, rowIndex) => {
             const isActive = activeRow === rowIndex
@@ -191,6 +223,7 @@ export function DataGrid({
               <tr
                 key={rowIndex}
                 data-row={rowIndex}
+                onContextMenu={() => setContextRow(rowIndex)}
                 onDoubleClick={() => handleRowDoubleClick(rowIndex)}
                 className={cn(
                   "cursor-default",
@@ -273,6 +306,18 @@ export function DataGrid({
             )
           })}
         </tbody>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-52">
+            <ContextMenuItem onSelect={() => copyRow("insert")}>
+              <Code2 className="size-4" />
+              Copy as SQL INSERT
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => copyRow("json")}>
+              <FileJson className="size-4" />
+              Copy as JSON
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       </table>
     </div>
   )

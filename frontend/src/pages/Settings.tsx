@@ -1,7 +1,11 @@
+import { useEffect, useState } from "react"
 import { useTheme } from "next-themes"
+import { toast } from "sonner"
 
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -17,7 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import type { AppSettings } from "@/lib/types"
+import { api } from "@/lib/api"
+import type { AppSettings, AIModel } from "@/lib/types"
 
 interface SettingsProps {
   open: boolean
@@ -104,6 +109,10 @@ export function Settings({
             </Select>
           </Row>
 
+          <Separator />
+
+          <AISettingsSection open={open} />
+
           {onReplayWelcome && (
             <>
               <Separator />
@@ -125,6 +134,112 @@ export function Settings({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// AISettingsSection manages the bring-your-own-key OpenRouter config: the API
+// key (write-only — never read back) and the model, chosen from a live list
+// fetched from OpenRouter.
+function AISettingsSection({ open }: { open: boolean }) {
+  const [hasKey, setHasKey] = useState(false)
+  const [apiKey, setApiKey] = useState("")
+  const [model, setModel] = useState("")
+  const [models, setModels] = useState<AIModel[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    api
+      .getAIConfig()
+      .then((c) => {
+        setHasKey(c.has_key)
+        setModel(c.model)
+      })
+      .catch(() => {})
+  }, [open])
+
+  const loadModels = async () => {
+    setLoadingModels(true)
+    try {
+      setModels(await api.listAIModels())
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not load models")
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.setAIConfig(apiKey, model)
+      setApiKey("")
+      const c = await api.getAIConfig()
+      setHasKey(c.has_key)
+      setModel(c.model)
+      toast.success("AI settings saved")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save AI settings")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Show the current model even if the full list hasn't been fetched yet.
+  const modelOptions = models.length
+    ? models
+    : model
+      ? [{ id: model, name: model, context_length: 0 }]
+      : []
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-0.5">
+        <Label className="text-sm">AI Assistant (OpenRouter)</Label>
+        <p className="text-muted-foreground text-xs">
+          Bring your own OpenRouter API key to ask plain-language questions about your
+          database. The key is encrypted on disk and never leaves your machine except to
+          OpenRouter.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">OpenRouter API key</Label>
+        <Input
+          type="password"
+          autoComplete="off"
+          value={apiKey}
+          placeholder={hasKey ? "•••••••• (key set — leave blank to keep)" : "sk-or-..."}
+          onChange={(e) => setApiKey(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Model</Label>
+        <div className="flex items-center gap-2">
+          <Select value={model} onValueChange={setModel}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Select a model" />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              {modelOptions.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name || m.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="button" variant="outline" size="sm" onClick={loadModels} disabled={loadingModels}>
+            {loadingModels ? "Loading…" : "Load models"}
+          </Button>
+        </div>
+      </div>
+
+      <Button type="button" size="sm" onClick={save} disabled={saving}>
+        {saving ? "Saving…" : "Save AI settings"}
+      </Button>
+    </div>
   )
 }
 

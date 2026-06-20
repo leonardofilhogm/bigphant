@@ -617,6 +617,7 @@ export function TableView({
             onCellCommit={readOnly ? () => {} : commitCell}
             readOnly={readOnly}
             editMode={editMode}
+            tableName={table}
           />
         )}
       </div>

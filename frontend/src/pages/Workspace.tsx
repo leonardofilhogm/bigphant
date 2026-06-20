@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { CableIcon, Eye, Lock, LockOpen, LogOut, PanelLeft, Settings as SettingsIcon, SquareTerminal, Table2, X } from "lucide-react"
+import { CableIcon, Eye, Lock, LockOpen, LogOut, PanelLeft, Settings as SettingsIcon, Sparkles, SquareTerminal, Table2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ import { TableOverview } from "@/components/TableOverview"
 import { TableView } from "@/pages/TableView"
 import { StructureView } from "@/pages/StructureView"
 import { SqlEditor } from "@/pages/SqlEditor"
+import { AIAssistant } from "@/components/AIAssistant"
 import { Settings } from "@/pages/Settings"
 import { DestructiveOpModal } from "@/components/DestructiveOpModal"
 import { TransactionBar, type TxEntry } from "@/components/TransactionBar"
@@ -35,7 +36,6 @@ import { cn } from "@/lib/utils"
 import { useShortcuts } from "@/lib/useShortcuts"
 import { useMenuEvents } from "@/lib/useMenuEvents"
 import { api } from "@/lib/api"
-import { isPlanRequired, parseAppError } from "@/lib/errors"
 import type { LicenseInfo } from "@/lib/license-types"
 import type { AppSettings, ConnectionMeta, EditMode, Entity, TableSummary } from "@/lib/types"
 
@@ -44,6 +44,7 @@ type Tab =
   | { id: string; kind: "view"; entity: Entity; sub: "data" | "definition" }
   | { id: string; kind: "definition"; entity: Entity }
   | { id: string; kind: "sql" }
+  | { id: string; kind: "ai" }
 
 // A destructive statement awaiting confirmation in the modal. `run` performs
 // the actual execution once the user confirms; `blocked` means the server
@@ -308,6 +309,16 @@ export function Workspace({
     setDbActive(tabKey, "sql")
   }
 
+  function openAI() {
+    const existing = tabs.find((t) => t.kind === "ai")
+    if (existing) {
+      setDbActive(tabKey, existing.id)
+      return
+    }
+    setDbTabs(tabKey, (prev) => [...prev, { id: "ai", kind: "ai" }])
+    setDbActive(tabKey, "ai")
+  }
+
   function closeTab(id: string) {
     setDbTabs(tabKey, (prev) => {
       const next = prev.filter((t) => t.id !== id)
@@ -508,6 +519,9 @@ export function Workspace({
             <SquareTerminal className="size-3.5" /> New Query
             <span className="ml-0.5 opacity-60">⌘T</span>
           </Button>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={openAI} title="AI Assistant">
+            <Sparkles className="size-3.5" /> Ask AI
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -639,8 +653,8 @@ export function Workspace({
                     <Table2 className="size-3.5" />
                   ) : t.kind === "view" ? (
                     <Eye className="size-3.5" />
-                  ) : t.kind === "definition" ? (
-                    <SquareTerminal className="size-3.5" />
+                  ) : t.kind === "ai" ? (
+                    <Sparkles className="size-3.5" />
                   ) : (
                     <SquareTerminal className="size-3.5" />
                   )}
@@ -648,7 +662,9 @@ export function Workspace({
                     ? t.table
                     : t.kind === "sql"
                       ? "SQL Editor"
-                      : t.entity.name}
+                      : t.kind === "ai"
+                        ? "AI Assistant"
+                        : t.entity.name}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -754,6 +770,8 @@ export function Workspace({
                       driver={connection.driver}
                       entity={t.entity}
                     />
+                  ) : t.kind === "ai" ? (
+                    <AIAssistant database={namespace} active={isActive && t.id === activeId} />
                   ) : (
                     <SqlEditor database={namespace} schema={schema} onMutate={handleMutate} onDestructive={runRawSQL} />
                   )}
@@ -800,7 +818,9 @@ export function Workspace({
         </span>
         {serverVersion && <span>{serverFlavor} {serverVersion}</span>}
         <span className="ml-auto tabular-nums">
-          {connection.driver === "postgres" ? `${database}.${schemaName}` : database} · {connection.host}:{connection.port}
+          {connection.driver === "sqlite"
+            ? connection.file_path
+            : `${connection.driver === "postgres" ? `${database}.${schemaName}` : database} · ${connection.host}:${connection.port}`}
         </span>
       </footer>
 

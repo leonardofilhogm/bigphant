@@ -18,6 +18,7 @@ import {
   ListSchemas,
   ListTables,
   OpenConnection,
+  PickSQLiteFile,
   RollbackTransaction,
   SetConnectionEditMode,
   SchemaColumns,
@@ -42,7 +43,17 @@ import {
   ListLicenseDevices,
   PreviewAlterTable,
   RequestFreeLicense,
+  GetAIConfig,
+  SetAIConfig,
+  ListAIModels,
+  GenerateDBContext,
+  GetDBContext,
+  SaveDBContext,
+  EnableAIAssistant,
+  AIAssistantStatus,
+  AIChat,
 } from "../../wailsjs/go/main/App"
+import { main } from "../../wailsjs/go/models"
 import { sqlbuilder } from "../../wailsjs/go/models"
 import type {
   AlterPreview,
@@ -57,6 +68,12 @@ import type {
   ResultSet,
   TableStructure,
   TableSummary,
+  AIConfig,
+  AIModel,
+  AIStatus,
+  AIEnableResult,
+  AIChatRequest,
+  AIChatResponse,
 } from "@/lib/types"
 import type { LicenseDevice, LicenseInfo } from "@/lib/license-types"
 
@@ -76,6 +93,7 @@ export const api = {
     SetConnectionEditMode(id, mode),
   testConnection: (input: ConnectionInput): Promise<TestResult> => TestConnection(input),
   openConnection: (id: string): Promise<void> => OpenConnection(id),
+  pickSQLiteFile: (): Promise<string> => PickSQLiteFile(),
   listDatabases: (): Promise<string[]> => ListDatabases(),
   listSchemas: (database: string): Promise<string[]> => ListSchemas(database),
   setActiveDatabase: (database: string): Promise<void> => SetActiveDatabase(database),
@@ -138,4 +156,19 @@ export const api = {
     PreviewAlterTable(sqlbuilder.AlterTableRequest.createFrom(req)),
   alterTable: (req: AlterTableRequest, confirmed: boolean): Promise<RawResult> =>
     AlterTable(sqlbuilder.AlterTableRequest.createFrom(req), confirmed),
+
+  // --- AI Assistant ---
+  getAIConfig: (): Promise<AIConfig> => GetAIConfig(),
+  setAIConfig: (apiKey: string, model: string): Promise<void> =>
+    SetAIConfig(apiKey, model),
+  listAIModels: (): Promise<AIModel[]> => ListAIModels(),
+  generateDBContext: (database: string): Promise<string> => GenerateDBContext(database),
+  getDBContext: (database: string): Promise<string> => GetDBContext(database),
+  saveDBContext: (database: string, markdown: string): Promise<void> =>
+    SaveDBContext(database, markdown),
+  enableAIAssistant: (database: string): Promise<AIEnableResult> =>
+    EnableAIAssistant(database),
+  aiAssistantStatus: (database: string): Promise<AIStatus> => AIAssistantStatus(database),
+  aiChat: (req: AIChatRequest): Promise<AIChatResponse> =>
+    AIChat(main.AIChatRequest.createFrom(req)),
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { ChevronRight, Plug, Search, Server } from "lucide-react"
+import { ChevronRight, FileText, Plug, Search, Server } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -190,11 +190,22 @@ export function OpenConnectionDialog({
                               )}
                             </div>
                             <div className="text-muted-foreground flex items-center gap-1 text-xs">
-                              <Server className="size-3 shrink-0" />
-                              <span className="truncate">
-                                {c.host}
-                                {c.default_database && ` : ${c.default_database}`}
-                              </span>
+                              {c.driver === "sqlite" ? (
+                                <>
+                                  <FileText className="size-3 shrink-0" />
+                                  <span className="truncate" dir="rtl" title={c.file_path}>
+                                    {c.file_path}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <Server className="size-3 shrink-0" />
+                                  <span className="truncate">
+                                    {c.host}
+                                    {c.default_database && ` : ${c.default_database}`}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </button>

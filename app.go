@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log"
 
+	"bigphant/internal/ai"
 	"bigphant/internal/apperror"
 	"bigphant/internal/connections"
+	"bigphant/internal/dbcontext"
 	"bigphant/internal/dbtypes"
 	"bigphant/internal/engine"
 	"bigphant/internal/license"
@@ -15,6 +17,7 @@ import (
 	"bigphant/internal/postgres"
 	"bigphant/internal/settings"
 	"bigphant/internal/sqlbuilder"
+	"bigphant/internal/sqlite"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -29,6 +32,14 @@ type App struct {
 	licenseSvc    *license.Service
 	conn          engine.Engine
 	activeConnID  string
+
+	// AI Assistant (v0.4.0). aiConfig stores the encrypted OpenRouter key; ctxStore
+	// holds per-database context markdown. aiConn is a separate read-only pool used
+	// exclusively for AI queries, opened lazily and keyed by aiConnDB.
+	aiConfig *ai.ConfigStore
+	ctxStore *dbcontext.Store
+	aiConn   engine.Engine
+	aiConnDB string
 }
 
 // NewApp creates a new App application struct.
@@ -72,6 +83,17 @@ func (a *App) startup(ctx context.Context) {
 		a.licenseSvc = lic
 		lic.StartValidation(ctx)
 	}
+
+	if cfg, err := ai.NewConfigStore(); err != nil {
+		log.Printf("bigphant: failed to init AI config store: %v", err)
+	} else {
+		a.aiConfig = cfg
+	}
+	if cs, err := dbcontext.NewStore(); err != nil {
+		log.Printf("bigphant: failed to init context store: %v", err)
+	} else {
+		a.ctxStore = cs
+	}
 }
 
 // shutdown closes the active connection pool on app exit.
@@ -79,6 +101,7 @@ func (a *App) shutdown(context.Context) {
 	if a.conn != nil {
 		a.conn.Close()
 	}
+	a.closeAIConn()
 }
 
 // TestResult is returned by TestConnection.
@@ -172,14 +195,37 @@ func (a *App) TestConnection(input connections.ConnectionInput) (TestResult, err
 		Port:            input.Port,
 		Username:        input.Username,
 		Password:        input.Password,
+		FilePath:        input.FilePath,
 		DefaultDatabase: input.DefaultDatabase,
 		Driver:          input.Driver,
 		SSLMode:         input.SSLMode,
+		SSHEnabled:      input.SSHEnabled,
+		SSHHost:         input.SSHHost,
+		SSHPort:         input.SSHPort,
+		SSHUsername:     input.SSHUsername,
+		SSHAuthMethod:   input.SSHAuthMethod,
+		SSHPassword:     input.SSHPassword,
+		SSHKeyPath:      input.SSHKeyPath,
+		SSHPrivateKey:   input.SSHPrivateKey,
+		SSHPassphrase:   input.SSHPassphrase,
 	}
 	if err := pingEngine(c); err != nil {
 		return TestResult{OK: false, Message: err.Error()}, nil
 	}
 	return TestResult{OK: true, Message: "Connection successful"}, nil
+}
+
+// PickSQLiteFile opens a native file-open dialog for choosing a SQLite database
+// file and returns the chosen absolute path ("" if the user cancels). Used by the
+// connection form's "Browse…" button.
+func (a *App) PickSQLiteFile() (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select SQLite database file",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "SQLite databases", Pattern: "*.db;*.sqlite;*.sqlite3;*.db3"},
+			{DisplayName: "All files", Pattern: "*.*"},
+		},
+	})
 }
 
 // OpenConnection opens the saved connection in the current window, replacing
@@ -209,6 +255,9 @@ func (a *App) OpenConnection(id string) error {
 	}
 	a.conn = conn
 	a.activeConnID = id
+	// The previous AI read-only pool belonged to the prior connection; drop it so
+	// the next AI request reopens against the newly active connection.
+	a.closeAIConn()
 	return nil
 }
 
@@ -429,6 +478,8 @@ func openEngine(c connections.Connection) (engine.Engine, error) {
 		return mysql.Open(c)
 	case "postgres":
 		return postgres.Open(c, c.SSLMode)
+	case "sqlite":
+		return sqlite.Open(c)
 	default:
 		return nil, fmt.Errorf("unsupported driver %q", c.Driver)
 	}
@@ -444,6 +495,8 @@ func pingEngine(c connections.Connection) error {
 			return err
 		}
 		return conn.Close()
+	case "sqlite":
+		return sqlite.Ping(c)
 	default:
 		return fmt.Errorf("unsupported driver %q", c.Driver)
 	}

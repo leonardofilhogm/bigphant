@@ -42,6 +42,21 @@ func (d PostgresDialect) Qualified(schema, table string) string {
 	return d.QuoteIdent(schema) + "." + d.QuoteIdent(table)
 }
 
+// SQLiteDialect uses double-quote identifiers (like Postgres) and "?" placeholders
+// (like MySQL). SQLite has no database/schema namespace for table references — one
+// file is one database — so Qualified ignores the namespace and quotes the table.
+type SQLiteDialect struct{}
+
+func (SQLiteDialect) QuoteIdent(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+func (SQLiteDialect) Placeholder(_ int) string { return "?" }
+
+func (d SQLiteDialect) Qualified(_, table string) string {
+	return d.QuoteIdent(table)
+}
+
 func itoa(n int) string {
 	// small local helper to avoid fmt.Sprintf allocations in hot paths
 	if n == 0 {
@@ -56,4 +71,3 @@ func itoa(n int) string {
 	}
 	return string(buf[i:])
 }
-
