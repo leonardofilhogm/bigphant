@@ -16,11 +16,17 @@ export function ActivateLicense(arg1:string):Promise<license.Info>;
 
 export function AlterTable(arg1:sqlbuilder.AlterTableRequest,arg2:boolean):Promise<dbtypes.RawResult>;
 
+export function ApplyGrants(arg1:dbtypes.GrantRequest):Promise<void>;
+
 export function CommitTransaction():Promise<void>;
 
 export function ConfirmQuitClose():Promise<void>;
 
 export function CreateConnection(arg1:connections.ConnectionInput):Promise<connections.ConnectionMeta>;
+
+export function CreateDatabase(arg1:dbtypes.CreateDatabaseRequest):Promise<void>;
+
+export function CreateUser(arg1:dbtypes.CreateUserRequest):Promise<void>;
 
 export function DeactivateLicenseDevice(arg1:string):Promise<void>;
 
@@ -31,6 +37,8 @@ export function DeleteConnection(arg1:string):Promise<void>;
 export function DeleteRows(arg1:string,arg2:string,arg3:Array<Record<string, any>>):Promise<number>;
 
 export function DescribeTable(arg1:string,arg2:string):Promise<dbtypes.TableStructure>;
+
+export function DropUser(arg1:string,arg2:string):Promise<void>;
 
 export function EnableAIAssistant(arg1:string):Promise<main.AIEnableResult>;
 
@@ -58,9 +66,15 @@ export function GetSettings():Promise<settings.AppSettings>;
 
 export function InsertRow(arg1:string,arg2:string,arg3:Record<string, any>):Promise<number>;
 
+export function KillProcess(arg1:string):Promise<void>;
+
 export function LicenseActivated():Promise<boolean>;
 
 export function ListAIModels():Promise<Array<ai.Model>>;
+
+export function ListActivity():Promise<Array<dbtypes.ServerProcess>>;
+
+export function ListCharsets():Promise<Array<dbtypes.Charset>>;
 
 export function ListConnections():Promise<Array<connections.ConnectionMeta>>;
 
@@ -68,11 +82,17 @@ export function ListDatabases():Promise<Array<string>>;
 
 export function ListEntities(arg1:string):Promise<Array<dbtypes.Entity>>;
 
+export function ListGrants(arg1:string,arg2:string):Promise<Array<dbtypes.Grant>>;
+
 export function ListLicenseDevices():Promise<Array<license.Device>>;
+
+export function ListLocks():Promise<Array<dbtypes.LockInfo>>;
 
 export function ListSchemas(arg1:string):Promise<Array<string>>;
 
 export function ListTables(arg1:string):Promise<Array<dbtypes.TableSummary>>;
+
+export function ListUsers():Promise<Array<dbtypes.ServerUser>>;
 
 export function OpenConnection(arg1:string):Promise<void>;
 
@@ -86,9 +106,13 @@ export function RequestFreeLicense(arg1:string):Promise<void>;
 
 export function RollbackTransaction():Promise<void>;
 
+export function RunMaintenance(arg1:string,arg2:string):Promise<dbtypes.RawResult>;
+
 export function SaveDBContext(arg1:string,arg2:string):Promise<void>;
 
 export function SchemaColumns(arg1:string):Promise<Record<string, Array<string>>>;
+
+export function ServerCapabilities():Promise<dbtypes.ServerCapabilities>;
 
 export function ServerFlavor():Promise<string>;
 

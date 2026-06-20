@@ -71,6 +71,13 @@ func (a *App) buildMenu() *menu.Menu {
 	conns.AddSeparator()
 	conns.AddText("Log Out", nil, emit("menu:logout"))
 
+	// ── Maintenance ───────────────────────────────────────────────────────────
+	maint := m.AddSubmenu("Maintenance")
+	maint.AddText("Manage Users & Permissions…", nil, emit("menu:maint-users"))
+	maint.AddText("Create Database…", nil, emit("menu:maint-database"))
+	maint.AddText("Server Activity…", nil, emit("menu:maint-activity"))
+	maint.AddText("Database Maintenance…", nil, emit("menu:maint-tools"))
+
 	// ── Window (native Minimize/Zoom/Fullscreen) ────────────────────────────
 	m.Append(menu.WindowMenu())
 

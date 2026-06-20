@@ -163,6 +163,22 @@ export namespace connections {
 
 export namespace dbtypes {
 	
+	export class Charset {
+	    name: string;
+	    default_collation: string;
+	    collations: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Charset(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.default_collation = source["default_collation"];
+	        this.collations = source["collations"];
+	    }
+	}
 	export class Column {
 	    name: string;
 	    type: string;
@@ -199,6 +215,46 @@ export namespace dbtypes {
 	        this.extra = source["extra"];
 	    }
 	}
+	export class CreateDatabaseRequest {
+	    name: string;
+	    charset: string;
+	    collation: string;
+	    encoding: string;
+	    owner: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateDatabaseRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.charset = source["charset"];
+	        this.collation = source["collation"];
+	        this.encoding = source["encoding"];
+	        this.owner = source["owner"];
+	    }
+	}
+	export class CreateUserRequest {
+	    name: string;
+	    host: string;
+	    password: string;
+	    can_login: boolean;
+	    is_superuser: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateUserRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.password = source["password"];
+	        this.can_login = source["can_login"];
+	        this.is_superuser = source["is_superuser"];
+	    }
+	}
 	export class Entity {
 	    name: string;
 	    kind: string;
@@ -219,6 +275,44 @@ export namespace dbtypes {
 	        this.extra = source["extra"];
 	    }
 	}
+	export class Grant {
+	    database: string;
+	    schema: string;
+	    privileges: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Grant(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.database = source["database"];
+	        this.schema = source["schema"];
+	        this.privileges = source["privileges"];
+	    }
+	}
+	export class GrantRequest {
+	    user: string;
+	    host: string;
+	    database: string;
+	    schema: string;
+	    privileges: string[];
+	    revoke: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GrantRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user = source["user"];
+	        this.host = source["host"];
+	        this.database = source["database"];
+	        this.schema = source["schema"];
+	        this.privileges = source["privileges"];
+	        this.revoke = source["revoke"];
+	    }
+	}
 	export class IndexInfo {
 	    name: string;
 	    columns: string[];
@@ -233,6 +327,30 @@ export namespace dbtypes {
 	        this.name = source["name"];
 	        this.columns = source["columns"];
 	        this.unique = source["unique"];
+	    }
+	}
+	export class LockInfo {
+	    lock_type: string;
+	    database: string;
+	    table: string;
+	    index: string;
+	    blocked_by: string;
+	    blocked_query: string;
+	    wait_sec: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LockInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lock_type = source["lock_type"];
+	        this.database = source["database"];
+	        this.table = source["table"];
+	        this.index = source["index"];
+	        this.blocked_by = source["blocked_by"];
+	        this.blocked_query = source["blocked_query"];
+	        this.wait_sec = source["wait_sec"];
 	    }
 	}
 	export class ResultSet {
@@ -310,6 +428,68 @@ export namespace dbtypes {
 		}
 	}
 	
+	export class ServerCapabilities {
+	    manage_users: boolean;
+	    manage_databases: boolean;
+	    view_activity: boolean;
+	    maintenance_ops: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerCapabilities(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.manage_users = source["manage_users"];
+	        this.manage_databases = source["manage_databases"];
+	        this.view_activity = source["view_activity"];
+	        this.maintenance_ops = source["maintenance_ops"];
+	    }
+	}
+	export class ServerProcess {
+	    id: string;
+	    user: string;
+	    host: string;
+	    database: string;
+	    command: string;
+	    time_sec: number;
+	    state: string;
+	    query: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerProcess(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user = source["user"];
+	        this.host = source["host"];
+	        this.database = source["database"];
+	        this.command = source["command"];
+	        this.time_sec = source["time_sec"];
+	        this.state = source["state"];
+	        this.query = source["query"];
+	    }
+	}
+	export class ServerUser {
+	    name: string;
+	    host: string;
+	    can_login: boolean;
+	    is_superuser: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerUser(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.can_login = source["can_login"];
+	        this.is_superuser = source["is_superuser"];
+	    }
+	}
 	export class TableStructure {
 	    columns: ColumnInfo[];
 	    indexes: IndexInfo[];

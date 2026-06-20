@@ -40,3 +40,21 @@ type Engine interface {
 	Rollback() error
 }
 
+// MaintenanceEngine is an optional capability for server administration
+// (users, databases, activity, maintenance ops). Not every connector implements
+// it — SQLite only supports RunMaintenance.
+type MaintenanceEngine interface {
+	ListUsers() ([]dbtypes.ServerUser, error)
+	CreateUser(req dbtypes.CreateUserRequest) error
+	DropUser(name, host string) error
+	ListGrants(name, host string) ([]dbtypes.Grant, error)
+	ApplyGrants(req dbtypes.GrantRequest) error
+	CreateDatabase(req dbtypes.CreateDatabaseRequest) error
+	ListCharsets() ([]dbtypes.Charset, error)
+	ListActivity() ([]dbtypes.ServerProcess, error)
+	KillProcess(id string) error
+	ListLocks() ([]dbtypes.LockInfo, error)
+	RunMaintenance(op string, target string) (dbtypes.RawResult, error)
+	Capabilities() dbtypes.ServerCapabilities
+}
+

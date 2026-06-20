@@ -237,6 +237,92 @@ export interface RawResult {
   status: string // "ok" | "destructive_blocked" | "destructive_confirm"
 }
 
+// --- Maintenance / server administration ---
+
+export interface ServerCapabilities {
+  manage_users: boolean
+  manage_databases: boolean
+  view_activity: boolean
+  maintenance_ops: string[]
+}
+
+export interface ServerUser {
+  name: string
+  host: string
+  can_login: boolean
+  is_superuser: boolean
+}
+
+export interface Grant {
+  database: string
+  schema: string
+  privileges: string[]
+}
+
+export interface GrantRequest {
+  user: string
+  host: string
+  database: string
+  schema: string
+  privileges: string[]
+  revoke: boolean
+}
+
+export interface CreateUserRequest {
+  name: string
+  host: string
+  password: string
+  can_login: boolean
+  is_superuser: boolean
+}
+
+export interface CreateDatabaseRequest {
+  name: string
+  charset: string
+  collation: string
+  encoding: string
+  owner: string
+}
+
+export interface Charset {
+  name: string
+  default_collation: string
+  collations: string[]
+}
+
+export interface ServerProcess {
+  id: string
+  user: string
+  host: string
+  database: string
+  command: string
+  time_sec: number
+  state: string
+  query: string
+}
+
+export interface LockInfo {
+  lock_type: string
+  database: string
+  table: string
+  index: string
+  blocked_by: string
+  blocked_query: string
+  wait_sec: number
+}
+
+export const TABLE_PRIVILEGES = [
+  "SELECT",
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "CREATE",
+  "DROP",
+  "ALTER",
+  "INDEX",
+  "ALL",
+] as const
+
 // --- AI Assistant ---
 
 export interface AIConfig {

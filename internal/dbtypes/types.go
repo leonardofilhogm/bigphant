@@ -88,3 +88,84 @@ type Entity struct {
 	Extra  string `json:"extra"`
 }
 
+// ServerCapabilities describes which maintenance features an engine supports.
+type ServerCapabilities struct {
+	ManageUsers      bool     `json:"manage_users"`
+	ManageDatabases  bool     `json:"manage_databases"`
+	ViewActivity     bool     `json:"view_activity"`
+	MaintenanceOps   []string `json:"maintenance_ops"`
+}
+
+// ServerUser is a database login (MySQL user@host or Postgres role).
+type ServerUser struct {
+	Name        string `json:"name"`
+	Host        string `json:"host"` // MySQL only; "" for Postgres
+	CanLogin    bool   `json:"can_login"`
+	IsSuperuser bool   `json:"is_superuser"`
+}
+
+// Grant is a set of privileges on a database (and optional schema for Postgres).
+type Grant struct {
+	Database    string   `json:"database"`
+	Schema      string   `json:"schema"`
+	Privileges  []string `json:"privileges"`
+}
+
+// GrantRequest applies or revokes privileges for a user.
+type GrantRequest struct {
+	User        string   `json:"user"`
+	Host        string   `json:"host"`
+	Database    string   `json:"database"`
+	Schema      string   `json:"schema"`
+	Privileges  []string `json:"privileges"`
+	Revoke      bool     `json:"revoke"`
+}
+
+// CreateUserRequest creates a new server login.
+type CreateUserRequest struct {
+	Name        string `json:"name"`
+	Host        string `json:"host"`
+	Password    string `json:"password"` // empty → server generates
+	CanLogin    bool   `json:"can_login"`
+	IsSuperuser bool   `json:"is_superuser"`
+}
+
+// CreateDatabaseRequest creates a new database.
+type CreateDatabaseRequest struct {
+	Name       string `json:"name"`
+	Charset    string `json:"charset"`
+	Collation  string `json:"collation"`
+	Encoding   string `json:"encoding"`
+	Owner      string `json:"owner"`
+}
+
+// Charset describes a character set / encoding with available collations.
+type Charset struct {
+	Name              string   `json:"name"`
+	DefaultCollation  string   `json:"default_collation"`
+	Collations        []string `json:"collations"`
+}
+
+// ServerProcess is one row of the server activity list.
+type ServerProcess struct {
+	ID       string `json:"id"`
+	User     string `json:"user"`
+	Host     string `json:"host"`
+	Database string `json:"database"`
+	Command  string `json:"command"`
+	TimeSec  int    `json:"time_sec"`
+	State    string `json:"state"`
+	Query    string `json:"query"`
+}
+
+// LockInfo describes a lock wait or blocking situation.
+type LockInfo struct {
+	LockType      string `json:"lock_type"`
+	Database      string `json:"database"`
+	Table         string `json:"table"`
+	Index         string `json:"index"`
+	BlockedBy     string `json:"blocked_by"`
+	BlockedQuery  string `json:"blocked_query"`
+	WaitSec       int    `json:"wait_sec"`
+}
+

@@ -597,5 +597,5 @@ func formatDefault(value string, isExpr bool) (string, error) {
 }
 
 func quoteStringLiteral(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	return QuoteStringLiteral(s)
 }

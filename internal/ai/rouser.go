@@ -1,10 +1,10 @@
 package ai
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"strings"
+
+	"bigphant/internal/maint"
 )
 
 // ROUsername is the fixed login Bigphant provisions for read-only AI queries.
@@ -15,14 +15,9 @@ const ROUsername = "bigphant_ai"
 // guard — these are known, safe account-management statements.
 type ExecFunc func(sql string) error
 
-// randomPassword returns a URL-safe password (no quotes or backslashes, so it is
-// safe to inline into a CREATE USER string literal).
+// randomPassword is deprecated; use maint.RandomPassword.
 func randomPassword() (string, error) {
-	buf := make([]byte, 24)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
+	return maint.RandomPassword()
 }
 
 // ProvisionROUser creates (or refreshes) a SELECT-only database user scoped to
@@ -31,13 +26,10 @@ func randomPassword() (string, error) {
 // main connection), the caller should fall back to app-layer read-only
 // enforcement using the connection's own credentials.
 func ProvisionROUser(flavor, database string, exec ExecFunc) (username, password string, err error) {
-	// SQLite has no concept of database users — read-only access is enforced at
-	// the app layer (and by opening the file with mode=ro). Signal that here so
-	// the caller falls back to app_layer mode without running bogus DDL.
 	if strings.EqualFold(flavor, "SQLite") {
 		return "", "", fmt.Errorf("SQLite has no database users; using app-layer read-only enforcement")
 	}
-	password, err = randomPassword()
+	password, err = maint.RandomPassword()
 	if err != nil {
 		return "", "", err
 	}

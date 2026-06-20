@@ -18,6 +18,10 @@ export function AlterTable(arg1, arg2) {
   return window['go']['main']['App']['AlterTable'](arg1, arg2);
 }
 
+export function ApplyGrants(arg1) {
+  return window['go']['main']['App']['ApplyGrants'](arg1);
+}
+
 export function CommitTransaction() {
   return window['go']['main']['App']['CommitTransaction']();
 }
@@ -28,6 +32,14 @@ export function ConfirmQuitClose() {
 
 export function CreateConnection(arg1) {
   return window['go']['main']['App']['CreateConnection'](arg1);
+}
+
+export function CreateDatabase(arg1) {
+  return window['go']['main']['App']['CreateDatabase'](arg1);
+}
+
+export function CreateUser(arg1) {
+  return window['go']['main']['App']['CreateUser'](arg1);
 }
 
 export function DeactivateLicenseDevice(arg1) {
@@ -48,6 +60,10 @@ export function DeleteRows(arg1, arg2, arg3) {
 
 export function DescribeTable(arg1, arg2) {
   return window['go']['main']['App']['DescribeTable'](arg1, arg2);
+}
+
+export function DropUser(arg1, arg2) {
+  return window['go']['main']['App']['DropUser'](arg1, arg2);
 }
 
 export function EnableAIAssistant(arg1) {
@@ -102,12 +118,24 @@ export function InsertRow(arg1, arg2, arg3) {
   return window['go']['main']['App']['InsertRow'](arg1, arg2, arg3);
 }
 
+export function KillProcess(arg1) {
+  return window['go']['main']['App']['KillProcess'](arg1);
+}
+
 export function LicenseActivated() {
   return window['go']['main']['App']['LicenseActivated']();
 }
 
 export function ListAIModels() {
   return window['go']['main']['App']['ListAIModels']();
+}
+
+export function ListActivity() {
+  return window['go']['main']['App']['ListActivity']();
+}
+
+export function ListCharsets() {
+  return window['go']['main']['App']['ListCharsets']();
 }
 
 export function ListConnections() {
@@ -122,8 +150,16 @@ export function ListEntities(arg1) {
   return window['go']['main']['App']['ListEntities'](arg1);
 }
 
+export function ListGrants(arg1, arg2) {
+  return window['go']['main']['App']['ListGrants'](arg1, arg2);
+}
+
 export function ListLicenseDevices() {
   return window['go']['main']['App']['ListLicenseDevices']();
+}
+
+export function ListLocks() {
+  return window['go']['main']['App']['ListLocks']();
 }
 
 export function ListSchemas(arg1) {
@@ -132,6 +168,10 @@ export function ListSchemas(arg1) {
 
 export function ListTables(arg1) {
   return window['go']['main']['App']['ListTables'](arg1);
+}
+
+export function ListUsers() {
+  return window['go']['main']['App']['ListUsers']();
 }
 
 export function OpenConnection(arg1) {
@@ -158,12 +198,20 @@ export function RollbackTransaction() {
   return window['go']['main']['App']['RollbackTransaction']();
 }
 
+export function RunMaintenance(arg1, arg2) {
+  return window['go']['main']['App']['RunMaintenance'](arg1, arg2);
+}
+
 export function SaveDBContext(arg1, arg2) {
   return window['go']['main']['App']['SaveDBContext'](arg1, arg2);
 }
 
 export function SchemaColumns(arg1) {
   return window['go']['main']['App']['SchemaColumns'](arg1);
+}
+
+export function ServerCapabilities() {
+  return window['go']['main']['App']['ServerCapabilities']();
 }
 
 export function ServerFlavor() {

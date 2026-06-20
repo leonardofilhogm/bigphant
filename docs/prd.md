@@ -143,7 +143,7 @@ These are not part of the PoC. Do not implement them, even if they seem like nat
 - Database diff / schema comparison
 - `mysqldump`-based backup/restore
 - Stored procedures, views, triggers, events management
-- Database creation/deletion from UI
+- Database creation/deletion from UI *(superseded by §17 Maintenance menu — create is in scope; delete remains deferred)*
 - Visual query builder with joins
 - Bulk Login Code-style admin features
 - Auto-update mechanism
@@ -641,3 +641,16 @@ A third engine behind the `internal/engine.Engine` interface, alongside MySQL/Ma
 - **No namespace.** One file is one database: `ListDatabases` returns a single entry (the file name), `ListSchemas` is empty, and `database` arguments are ignored.
 - **Read-only by construction for AI.** SQLite has no database users, so `EnableAIAssistant` always falls back to `app_layer`; the read-only pool additionally opens the file with `mode=ro` + `PRAGMA query_only`. `internal/dbcontext` works unchanged (it is generic over the engine interface).
 - **Limited `ALTER TABLE`.** `buildAlterSQLite` supports ADD/DROP/RENAME COLUMN, RENAME TABLE, and standalone CREATE/DROP INDEX; modify-column, primary/foreign keys, checks, and defaults are rejected with a clear message (they would require a full table rebuild). No SSH tunnel (the file is local).
+
+## 17. v0.5.0 — Maintenance / server administration
+
+Native **Maintenance** menu (macOS/Windows menu bar) for server administration, modeled on TablePlus. Engine coverage: **MySQL/MariaDB + PostgreSQL full**; **SQLite** gets Database Maintenance only (VACUUM, integrity check, REINDEX).
+
+- **Users & Permissions:** create/drop users (MySQL) or roles (Postgres); per-database privilege matrix (SELECT/INSERT/UPDATE/DELETE/CREATE/DROP/ALTER/INDEX/ALL). Passwords for new users are generated server-side when blank and never returned to the frontend.
+- **Databases:** create a database with charset/collation (MySQL) or encoding/owner (Postgres). Database deletion from UI remains deferred.
+- **Server Activity:** list running queries, kill a process, view lock waits.
+- **Database Maintenance:** MySQL `OPTIMIZE`/`ANALYZE TABLE`; Postgres `VACUUM`/`ANALYZE`; SQLite `VACUUM`/`PRAGMA integrity_check`/`REINDEX`.
+- **Backend:** optional `engine.MaintenanceEngine` capability interface (not part of mandatory `Engine`); Wails methods in `app_maint.go`; per-engine logic in `internal/<engine>/maint.go`; shared admin SQL builders in `internal/maint` with `sqlbuilder.ValidateIdentifier` + `QuoteStringLiteral`. Reuses `internal/ai/rouser.go` password pattern.
+- **License gate:** all writes gated on `license.FeatModifySchema` + `requireWrite()` (same as structured DDL in `app_ddl.go`).
+- **Frontend:** four dialogs under `frontend/src/components/maintenance/` wired from `Workspace.tsx` via `menu:maint-*` events. Capability check via `ServerCapabilities()` on open; unsupported features show a friendly empty state (SQLite for users/databases/activity).
+- **Menu:** `Maintenance` submenu in `menu.go` after Connections: Manage Users & Permissions, Create Database, Server Activity, Database Maintenance.

@@ -52,8 +52,20 @@ import {
   EnableAIAssistant,
   AIAssistantStatus,
   AIChat,
+  ServerCapabilities,
+  ListUsers,
+  CreateUser,
+  DropUser,
+  ListGrants,
+  ApplyGrants,
+  CreateDatabase,
+  ListCharsets,
+  ListActivity,
+  KillProcess,
+  ListLocks,
+  RunMaintenance,
 } from "../../wailsjs/go/main/App"
-import { main } from "../../wailsjs/go/models"
+import { main, dbtypes } from "../../wailsjs/go/models"
 import { sqlbuilder } from "../../wailsjs/go/models"
 import type {
   AlterPreview,
@@ -74,6 +86,15 @@ import type {
   AIEnableResult,
   AIChatRequest,
   AIChatResponse,
+  ServerCapabilities as ServerCapabilitiesType,
+  ServerUser,
+  Grant,
+  GrantRequest,
+  CreateUserRequest,
+  CreateDatabaseRequest,
+  Charset,
+  ServerProcess,
+  LockInfo,
 } from "@/lib/types"
 import type { LicenseDevice, LicenseInfo } from "@/lib/license-types"
 
@@ -171,4 +192,21 @@ export const api = {
   aiAssistantStatus: (database: string): Promise<AIStatus> => AIAssistantStatus(database),
   aiChat: (req: AIChatRequest): Promise<AIChatResponse> =>
     AIChat(main.AIChatRequest.createFrom(req)),
+
+  // --- Maintenance ---
+  serverCapabilities: (): Promise<ServerCapabilitiesType> => ServerCapabilities(),
+  listUsers: (): Promise<ServerUser[]> => ListUsers(),
+  createUser: (req: CreateUserRequest): Promise<void> =>
+    CreateUser(dbtypes.CreateUserRequest.createFrom(req)),
+  dropUser: (name: string, host: string): Promise<void> => DropUser(name, host),
+  listGrants: (name: string, host: string): Promise<Grant[]> => ListGrants(name, host),
+  applyGrants: (req: GrantRequest): Promise<void> =>
+    ApplyGrants(dbtypes.GrantRequest.createFrom(req)),
+  createDatabase: (req: CreateDatabaseRequest): Promise<void> =>
+    CreateDatabase(dbtypes.CreateDatabaseRequest.createFrom(req)),
+  listCharsets: (): Promise<Charset[]> => ListCharsets(),
+  listActivity: (): Promise<ServerProcess[]> => ListActivity(),
+  killProcess: (id: string): Promise<void> => KillProcess(id),
+  listLocks: (): Promise<LockInfo[]> => ListLocks(),
+  runMaintenance: (op: string, target: string): Promise<RawResult> => RunMaintenance(op, target),
 }

@@ -24,6 +24,10 @@ import { TableView } from "@/pages/TableView"
 import { StructureView } from "@/pages/StructureView"
 import { SqlEditor } from "@/pages/SqlEditor"
 import { AIAssistant } from "@/components/AIAssistant"
+import { UserManager } from "@/components/maintenance/UserManager"
+import { DatabaseCreator } from "@/components/maintenance/DatabaseCreator"
+import { ServerActivity } from "@/components/maintenance/ServerActivity"
+import { MaintenanceTools } from "@/components/maintenance/MaintenanceTools"
 import { Settings } from "@/pages/Settings"
 import { DestructiveOpModal } from "@/components/DestructiveOpModal"
 import { TransactionBar, type TxEntry } from "@/components/TransactionBar"
@@ -172,6 +176,10 @@ export function Workspace({
   const [licenseOpen, setLicenseOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [newConnOpen, setNewConnOpen] = useState(false)
+  const [maintUsersOpen, setMaintUsersOpen] = useState(false)
+  const [maintDatabaseOpen, setMaintDatabaseOpen] = useState(false)
+  const [maintActivityOpen, setMaintActivityOpen] = useState(false)
+  const [maintToolsOpen, setMaintToolsOpen] = useState(false)
 
   // Switches this window to another saved connection without dropping to the
   // connection-list screen. Rolls back any open transaction first, swaps the
@@ -479,6 +487,10 @@ export function Workspace({
       "menu:switch-connection": () => setSwitcherOpen(true),
       "menu:settings": () => setSettingsOpen(true),
       "menu:license": () => setLicenseOpen(true),
+      "menu:maint-users": () => setMaintUsersOpen(true),
+      "menu:maint-database": () => setMaintDatabaseOpen(true),
+      "menu:maint-activity": () => setMaintActivityOpen(true),
+      "menu:maint-tools": () => setMaintToolsOpen(true),
     },
     isActive
   )
@@ -832,6 +844,40 @@ export function Workspace({
         connectionReadOnly={readOnly}
         onConnectionReadOnlyChange={setReadOnly}
         onReplayWelcome={onReplayWelcome}
+      />
+
+      <UserManager
+        open={maintUsersOpen}
+        onOpenChange={setMaintUsersOpen}
+        driver={connection.driver}
+        database={database}
+        canModifySchema={canModifySchema}
+        onPlanRequired={onPlanRequired}
+      />
+      <DatabaseCreator
+        open={maintDatabaseOpen}
+        onOpenChange={setMaintDatabaseOpen}
+        driver={connection.driver}
+        database={database}
+        canModifySchema={canModifySchema}
+        onPlanRequired={onPlanRequired}
+        onSuccess={refreshDatabases}
+      />
+      <ServerActivity
+        open={maintActivityOpen}
+        onOpenChange={setMaintActivityOpen}
+        driver={connection.driver}
+        database={database}
+        canModifySchema={canModifySchema}
+        onPlanRequired={onPlanRequired}
+      />
+      <MaintenanceTools
+        open={maintToolsOpen}
+        onOpenChange={setMaintToolsOpen}
+        driver={connection.driver}
+        database={database}
+        canModifySchema={canModifySchema}
+        onPlanRequired={onPlanRequired}
       />
 
       <OpenConnectionDialog
