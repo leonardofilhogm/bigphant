@@ -153,6 +153,31 @@ export function DataGrid({
     setEditing(null)
   }
 
+  // Commits the current cell and opens the inline editor on the neighbouring
+  // cell (dRow/dCol relative). Column moves walk the *visible* columns only.
+  // Returns false (and does nothing) when the move would land out of bounds,
+  // so callers can fall back to a plain commit at the grid edge.
+  function moveEdit(dRow: number, dCol: number): boolean {
+    if (!editing) return false
+    let newRow = editing.row
+    let newColIndex = editing.col
+    if (dCol !== 0) {
+      const pos = shown.findIndex((s) => s.index === editing.col)
+      const nextPos = pos + dCol
+      if (nextPos < 0 || nextPos >= shown.length) return false
+      newColIndex = shown[nextPos].index
+    }
+    if (dRow !== 0) {
+      newRow = editing.row + dRow
+      if (newRow < 0 || newRow >= rows.length) return false
+    }
+    if (draft !== editing.orig) {
+      onCellCommit(editing.row, columns[editing.col].name, draft)
+    }
+    startEdit(newRow, newColIndex, rows[newRow]?.[newColIndex])
+    return true
+  }
+
   async function copyRow(format: "json" | "insert") {
     if (contextRow == null) return
     const row = rows[contextRow]
@@ -287,11 +312,35 @@ export function DataGrid({
                           onChange={(e) => setDraft(e.target.value)}
                           onBlur={commit}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === "Tab") {
+                            const input = e.currentTarget
+                            const len = input.value.length
+                            const atStart =
+                              input.selectionStart === 0 && input.selectionEnd === 0
+                            const atEnd =
+                              input.selectionStart === len && input.selectionEnd === len
+                            if (e.key === "Enter") {
                               e.preventDefault()
-                              commit()
+                              // Move down like a spreadsheet; commit at the last row.
+                              if (!moveEdit(1, 0)) commit()
+                            } else if (e.key === "Tab") {
+                              e.preventDefault()
+                              if (!moveEdit(0, e.shiftKey ? -1 : 1)) commit()
                             } else if (e.key === "Escape") {
                               setEditing(null)
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault()
+                              moveEdit(-1, 0)
+                            } else if (e.key === "ArrowDown") {
+                              e.preventDefault()
+                              moveEdit(1, 0)
+                            } else if (e.key === "ArrowLeft" && atStart) {
+                              // Only hop columns when the caret is at the text edge,
+                              // so arrows still move within the value while typing.
+                              e.preventDefault()
+                              moveEdit(0, -1)
+                            } else if (e.key === "ArrowRight" && atEnd) {
+                              e.preventDefault()
+                              moveEdit(0, 1)
                             }
                           }}
                           className="-mx-3 -my-1 w-[calc(100%+1.5rem)] bg-transparent px-3 py-1 outline-none"

@@ -11,12 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { EditModeDialog } from "@/components/EditModeDialog"
 import { LicensePanel } from "@/components/LicensePanel"
 import { Sidebar } from "@/components/Sidebar"
 import { TableOverview } from "@/components/TableOverview"
@@ -34,6 +29,7 @@ import { TransactionBar, type TxEntry } from "@/components/TransactionBar"
 import { ModeToggle } from "@/components/mode-toggle"
 import { DriverLogo } from "@/components/DriverLogo"
 import { OpenConnectionDialog } from "@/components/OpenConnectionDialog"
+import { TableSwitcher } from "@/components/TableSwitcher"
 import { ConnectionFormDialog } from "@/pages/ConnectionList"
 import { entityTabId, EntityDefinitionView } from "@/components/EntityDefinition"
 import { cn } from "@/lib/utils"
@@ -173,8 +169,10 @@ export function Workspace({
   }, [namespace, dataVersion])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [editModeOpen, setEditModeOpen] = useState(false)
   const [licenseOpen, setLicenseOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [tableSwitcherOpen, setTableSwitcherOpen] = useState(false)
   const [newConnOpen, setNewConnOpen] = useState(false)
   const [maintUsersOpen, setMaintUsersOpen] = useState(false)
   const [maintDatabaseOpen, setMaintDatabaseOpen] = useState(false)
@@ -466,6 +464,8 @@ export function Workspace({
   // below — so they're not duplicated here. ⌘1–9 / ⌘⇧[ ] stay in JS since
   // they're awkward as menu items.
   useShortcuts([
+    { key: "p", meta: true, handler: () => setTableSwitcherOpen((o) => !o) },
+    { key: "p", ctrl: true, handler: () => setTableSwitcherOpen((o) => !o) },
     { code: "BracketRight", meta: true, shift: true, handler: () => cycleTab(1) },
     { code: "BracketLeft", meta: true, shift: true, handler: () => cycleTab(-1) },
     ...Array.from({ length: 9 }, (_, i) => ({
@@ -534,32 +534,18 @@ export function Workspace({
           <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={openAI} title="AI Assistant">
             <Sparkles className="size-3.5" /> Ask AI
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                title={`Row editing: ${EDIT_MODE_META[editMode].label}`}
-              >
-                {(() => {
-                  const Icon = EDIT_MODE_META[editMode].Icon
-                  return <Icon className="size-4" />
-                })()}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => changeEditMode("inline")}>
-                <Table2 className="size-4" /> Inline only
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => changeEditMode("mixed")}>
-                <LockOpen className="size-4" /> Mixed
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => changeEditMode("side_panel")}>
-                <Lock className="size-4" /> Side panel
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setEditModeOpen(true)}
+            title={`Row editing: ${EDIT_MODE_META[editMode].label}`}
+          >
+            {(() => {
+              const Icon = EDIT_MODE_META[editMode].Icon
+              return <Icon className="size-4" />
+            })()}
+          </Button>
           {license && (
             <Button
               variant="ghost"
@@ -846,6 +832,13 @@ export function Workspace({
         onReplayWelcome={onReplayWelcome}
       />
 
+      <EditModeDialog
+        open={editModeOpen}
+        onOpenChange={setEditModeOpen}
+        value={editMode}
+        onChange={changeEditMode}
+      />
+
       <UserManager
         open={maintUsersOpen}
         onOpenChange={setMaintUsersOpen}
@@ -878,6 +871,15 @@ export function Workspace({
         database={database}
         canModifySchema={canModifySchema}
         onPlanRequired={onPlanRequired}
+      />
+
+      <TableSwitcher
+        open={tableSwitcherOpen}
+        onOpenChange={setTableSwitcherOpen}
+        tables={tables}
+        entities={entities}
+        onOpenTable={openTable}
+        onOpenEntity={openEntity}
       />
 
       <OpenConnectionDialog

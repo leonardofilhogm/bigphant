@@ -373,6 +373,17 @@ export function TableView({
   }
 
   function addRow() {
+    // In inline mode, stage a blank row directly in the grid (edit it in place)
+    // instead of opening the side panel. Auto/generated columns start NULL so
+    // it's clear the DB fills them in. Nothing hits the DB until Save.
+    if (editMode === "inline") {
+      setPendingRows((prev) => {
+        const next = [...prev, columns.map((c) => (autoCols.has(c.name) ? null : ""))]
+        setScrollToRow(rows.length + next.length - 1)
+        return next
+      })
+      return
+    }
     setNewRow(columns.map(() => ""))
     setActiveRow(null)
     setAddingRow(true)
@@ -408,7 +419,13 @@ export function TableView({
     const payloads = pendingRows.map((r) => {
       const values: Record<string, unknown> = {}
       columns.forEach((c, j) => {
-        if (!autoCols.has(c.name)) values[c.name] = r[j]
+        // Skip auto/generated columns, and omit blank/null fields so the DB
+        // applies column defaults (e.g. an empty inline-added row inserts using
+        // defaults instead of forcing "" into date/int/NOT NULL columns). This
+        // mirrors the side-panel insert path (savePanel).
+        if (autoCols.has(c.name)) return
+        if (r[j] === "" || r[j] === null) return
+        values[c.name] = r[j]
       })
       return values
     })

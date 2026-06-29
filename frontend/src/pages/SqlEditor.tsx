@@ -3,7 +3,16 @@ import { History, Loader2, Maximize2, Minimize2, Play, Plus, X } from "lucide-re
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
 import CodeMirror, { keymap, Prec } from "@uiw/react-codemirror"
-import { MySQL, sql } from "@codemirror/lang-sql"
+import {
+  MySQL,
+  sql,
+  schemaCompletionSource,
+  keywordCompletionSource,
+} from "@codemirror/lang-sql"
+import { acceptCompletion, autocompletion } from "@codemirror/autocomplete"
+import { indentWithTab } from "@codemirror/commands"
+
+import { fromColumnSource } from "@/lib/sqlCompletion"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -50,7 +59,7 @@ export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEdit
     {
       id: 1,
       name: "Query 1",
-      sql: "SELECT * FROM employees\nWHERE gender = 'F'\nLIMIT 50;",
+      sql: "",
       result: null,
       affected: null,
       duration: null,
@@ -70,9 +79,24 @@ export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEdit
   const runRef = useRef<() => void>(() => {})
   const extensions = useMemo(
     () => [
-      sql({ dialect: MySQL, schema, upperCaseKeywords: true }),
+      sql({ dialect: MySQL, upperCaseKeywords: true }),
+      // Order matters: FROM-clause columns first, then table/schema names,
+      // then keywords. `override` replaces lang-sql's default source so the
+      // three run together at one position.
+      autocompletion({
+        override: [
+          fromColumnSource(schema ?? {}),
+          schemaCompletionSource({ dialect: MySQL, schema }),
+          keywordCompletionSource(MySQL, true),
+        ],
+      }),
+      // Tab accepts an open completion, otherwise indents (Shift-Tab dedents).
       Prec.highest(
-        keymap.of([{ key: "Mod-Enter", run: () => (runRef.current(), true) }])
+        keymap.of([
+          { key: "Mod-Enter", run: () => (runRef.current(), true) },
+          { key: "Tab", run: acceptCompletion },
+          indentWithTab,
+        ])
       ),
     ],
     [schema]
