@@ -22,6 +22,10 @@ interface DataGridProps {
   columns: Column[]
   visible: Set<string>
   rows: unknown[][]
+  // Primary-key column names. PK cells of existing (non-pending) rows are not
+  // editable inline — they identify the row in the generated UPDATE. New
+  // (pending) rows may still set their PK, mirroring the side panel.
+  primaryKey?: string[]
   sort?: { column: string; dir: "ASC" | "DESC" } | null
   onSort?: (colName: string) => void
   selected: Set<number>
@@ -52,6 +56,7 @@ export function DataGrid({
   columns,
   visible,
   rows,
+  primaryKey = [],
   sort,
   onSort,
   selected,
@@ -92,7 +97,15 @@ export function DataGrid({
     }
   }
 
+  // A PK cell of an existing (non-pending) row is locked — it keys the UPDATE.
+  // Pending inserts may still edit their PK, matching VerticalRowPanel.
+  function isCellEditable(rowIndex: number, colIndex: number): boolean {
+    if (pending?.has(rowIndex)) return true
+    return !primaryKey.includes(columns[colIndex]?.name)
+  }
+
   function startEdit(rowIndex: number, colIndex: number, value: unknown) {
+    if (!isCellEditable(rowIndex, colIndex)) return
     const initial = value == null ? "" : String(value)
     setEditing({ row: rowIndex, col: colIndex, orig: initial })
     setDraft(initial)
@@ -161,15 +174,20 @@ export function DataGrid({
     if (!editing) return false
     let newRow = editing.row
     let newColIndex = editing.col
-    if (dCol !== 0) {
-      const pos = shown.findIndex((s) => s.index === editing.col)
-      const nextPos = pos + dCol
-      if (nextPos < 0 || nextPos >= shown.length) return false
-      newColIndex = shown[nextPos].index
-    }
-    if (dRow !== 0) {
-      newRow = editing.row + dRow
-      if (newRow < 0 || newRow >= rows.length) return false
+    let pos = dCol !== 0 ? shown.findIndex((s) => s.index === editing.col) : -1
+    // Step in the requested direction, skipping locked (PK) cells until we land
+    // on an editable one or run off the edge.
+    for (;;) {
+      if (dCol !== 0) {
+        pos += dCol
+        if (pos < 0 || pos >= shown.length) return false
+        newColIndex = shown[pos].index
+      }
+      if (dRow !== 0) {
+        newRow += dRow
+        if (newRow < 0 || newRow >= rows.length) return false
+      }
+      if (isCellEditable(newRow, newColIndex)) break
     }
     if (draft !== editing.orig) {
       onCellCommit(editing.row, columns[editing.col].name, draft)
@@ -295,12 +313,15 @@ export function DataGrid({
                   const value = row[index]
                   const isEditing = editing?.row === rowIndex && editing?.col === index
                   const isDirtyCell = dirtyCols?.has(col.name) ?? false
+                  const isLocked = !readOnly && editMode !== "side_panel" && !isCellEditable(rowIndex, index)
                   return (
                     <td
                       key={col.name}
                       onClick={() => handleCellClick(rowIndex, index, value)}
+                      title={isLocked ? "Primary key — not editable" : undefined}
                       className={cn(
                         "max-w-[340px] truncate border-b border-r px-3 py-1 font-mono whitespace-nowrap",
+                        isLocked && "cursor-not-allowed",
                         isDirtyCell && "bg-amber-500/15 italic",
                         isEditing && "ring-primary bg-background ring-2 ring-inset"
                       )}

@@ -31,11 +31,35 @@ type FetchRowsRequest struct {
 const DefaultLimit = 300
 
 var valueComparators = map[string]bool{
-	"=": true, "!=": true, ">": true, "<": true, ">=": true, "<=": true, "LIKE": true,
+	"=": true, "!=": true, "<>": true, ">": true, "<": true, ">=": true, "<=": true,
+	"LIKE": true, "NOT LIKE": true,
 }
 
 var nullComparators = map[string]bool{
 	"IS NULL": true, "IS NOT NULL": true,
+}
+
+// IN / NOT IN take a comma-separated list; BETWEEN / NOT BETWEEN take exactly
+// two comma-separated bounds. Both bind every element as a placeholder.
+var inComparators = map[string]bool{
+	"IN": true, "NOT IN": true,
+}
+
+var betweenComparators = map[string]bool{
+	"BETWEEN": true, "NOT BETWEEN": true,
+}
+
+// splitList parses a comma-separated value into trimmed, non-empty elements.
+// Note (PoC limitation): values that themselves contain a comma can't be
+// expressed this way — acceptable for the table-browse filter bar.
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // BuildSelect returns the SQL and bound args for a table-browse query.
@@ -66,6 +90,27 @@ func BuildSelectDialect(d Dialect, req FetchRowsRequest) (string, []any, error) 
 		case valueComparators[f.Comparator]:
 			clauses = append(clauses, col+" "+f.Comparator+" "+d.Placeholder(len(args)+1))
 			args = append(args, f.Value)
+		case inComparators[f.Comparator]:
+			items := splitList(f.Value)
+			if len(items) == 0 {
+				continue // empty list → no-op, skip the clause
+			}
+			placeholders := make([]string, len(items))
+			for i, v := range items {
+				placeholders[i] = d.Placeholder(len(args) + 1)
+				args = append(args, v)
+			}
+			clauses = append(clauses, col+" "+f.Comparator+" ("+strings.Join(placeholders, ", ")+")")
+		case betweenComparators[f.Comparator]:
+			items := splitList(f.Value)
+			if len(items) != 2 {
+				return "", nil, fmt.Errorf("%s requires two values separated by a comma", f.Comparator)
+			}
+			lo := d.Placeholder(len(args) + 1)
+			args = append(args, items[0])
+			hi := d.Placeholder(len(args) + 1)
+			args = append(args, items[1])
+			clauses = append(clauses, col+" "+f.Comparator+" "+lo+" AND "+hi)
 		default:
 			return "", nil, fmt.Errorf("unsupported comparator: %q", f.Comparator)
 		}

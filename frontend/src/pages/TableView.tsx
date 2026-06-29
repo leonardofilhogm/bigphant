@@ -38,6 +38,7 @@ import { api } from "@/lib/api"
 import { isPlanRequired, parseAppError } from "@/lib/errors"
 import { useShortcuts } from "@/lib/useShortcuts"
 import { useMenuEvents } from "@/lib/useMenuEvents"
+import { resolveFilter } from "@/lib/types"
 import type { Column, EditMode, Filter, ResultSet } from "@/lib/types"
 
 const PAGE_SIZES = [300, 500, 1000]
@@ -565,7 +566,14 @@ export function TableView({
           }}
           onApply={() => {
             setOffset(0)
-            setAppliedFilters(filters.filter((f) => f.enabled !== false))
+            setAppliedFilters(
+              filters.filter((f) => f.enabled !== false).map(resolveFilter)
+            )
+          }}
+          onClear={() => {
+            setFilters([])
+            setOffset(0)
+            setAppliedFilters([])
           }}
         />
       )}
@@ -620,6 +628,7 @@ export function TableView({
             columns={columns}
             visible={visible}
             rows={displayRows}
+            primaryKey={primaryKey}
             pending={pendingSet}
             dirtyUpdated={dirtyUpdatedCellMap}
             dirtyInserted={dirtyInsertedIndices}

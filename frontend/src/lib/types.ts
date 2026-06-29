@@ -181,22 +181,54 @@ export interface Column {
 
 export type Comparator =
   | "="
-  | "!="
-  | ">"
+  | "<>"
   | "<"
-  | ">="
+  | ">"
   | "<="
-  | "LIKE"
+  | ">="
+  | "IN"
+  | "NOT IN"
   | "IS NULL"
   | "IS NOT NULL"
+  | "BETWEEN"
+  | "NOT BETWEEN"
+  | "LIKE"
+  // "NOT LIKE" is produced by resolveFilter (Not contains); not shown directly.
+  | "NOT LIKE"
+  | "Contains"
+  | "Not contains"
+  | "Starts with"
+  | "Ends with"
 
 export interface Filter {
   column: string
+  // "Contains" is a UI-only convenience comparator; it is translated to a "LIKE"
+  // with the value auto-wrapped in %…% before the filter reaches the Go backend
+  // (see resolveFilter). The backend only accepts the SQL comparators above.
   comparator: Comparator
   value: string
   // UI-only: when false the filter row is kept but excluded on Apply. Stripped
   // by the generated Filter model before reaching the Go backend.
   enabled?: boolean
+}
+
+// Translate UI-only comparators into the SQL comparators the backend accepts.
+// The substring/prefix/suffix shortcuts auto-wrap the value in % wildcards so
+// users get the common LIKE patterns without typing them. Everything else
+// (=, <>, IN, BETWEEN, IS NULL, raw LIKE, …) passes straight through.
+export function resolveFilter(f: Filter): Filter {
+  switch (f.comparator) {
+    case "Contains":
+      return { ...f, comparator: "LIKE", value: `%${f.value}%` }
+    case "Not contains":
+      return { ...f, comparator: "NOT LIKE", value: `%${f.value}%` }
+    case "Starts with":
+      return { ...f, comparator: "LIKE", value: `${f.value}%` }
+    case "Ends with":
+      return { ...f, comparator: "LIKE", value: `%${f.value}` }
+    default:
+      return f
+  }
 }
 
 export interface ResultSet {
