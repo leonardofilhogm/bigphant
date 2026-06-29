@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react"
-import { History, Loader2, Play, Plus, X } from "lucide-react"
+import { History, Loader2, Maximize2, Minimize2, Play, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
 import CodeMirror, { keymap, Prec } from "@uiw/react-codemirror"
@@ -15,6 +15,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import { DataGrid } from "@/components/DataGrid"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
@@ -54,6 +59,7 @@ export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEdit
   ])
   const [activeId, setActiveId] = useState(1)
   const [history, setHistory] = useState<string[]>([])
+  const [editorFullscreen, setEditorFullscreen] = useState(false)
   const { resolvedTheme } = useTheme()
 
   const active = tabs.find((t) => t.id === activeId)!
@@ -125,6 +131,57 @@ export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEdit
 
   runRef.current = run
 
+  const editor = (
+    <div className="h-full overflow-auto text-xs [&_.cm-editor]:h-full [&_.cm-editor]:bg-transparent [&_.cm-gutters]:bg-transparent">
+      <CodeMirror
+        value={active.sql}
+        height="100%"
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
+        extensions={extensions}
+        onChange={(value) => patch({ sql: value })}
+        placeholder="Write SQL, then press ⌘↵ to run"
+        basicSetup={{ foldGutter: false }}
+      />
+    </div>
+  )
+
+  const results = (
+    <div className="flex h-full min-h-0 flex-col">
+      {active.loading ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-xs">
+          <Loader2 className="size-4 animate-spin" /> Running…
+        </div>
+      ) : active.result ? (
+        <>
+          <div className="min-h-0 flex-1">
+            <DataGrid
+              columns={active.result.columns}
+              visible={new Set(active.result.columns.map((c) => c.name))}
+              rows={active.result.rows}
+              selected={new Set()}
+              activeRow={null}
+              onToggleRow={() => {}}
+              onToggleAll={() => {}}
+              onRowClick={() => {}}
+              onCellCommit={() => {}}
+              editMode="side_panel"
+            />
+          </div>
+          <div className="text-muted-foreground border-t px-3 py-1 text-[11px]">
+            {active.result.row_count} row{active.result.row_count !== 1 ? "s" : ""}
+            {active.duration !== null && ` · ${active.duration}ms`}
+          </div>
+        </>
+      ) : (
+        <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
+          {active.affected !== null
+            ? `${active.affected} row(s) affected${active.duration !== null ? ` · ${active.duration}ms` : ""}`
+            : "Results appear here."}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-1 border-b px-1.5 pt-1">
@@ -183,54 +240,36 @@ export function SqlEditor({ database, schema, onMutate, onDestructive }: SqlEdit
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            title={editorFullscreen ? "Exit full screen" : "Full screen editor"}
+            onClick={() => setEditorFullscreen((v) => !v)}
+          >
+            {editorFullscreen ? (
+              <Minimize2 className="size-3.5" />
+            ) : (
+              <Maximize2 className="size-3.5" />
+            )}
+          </Button>
+        </div>
       </div>
 
-      <div className="border-b text-xs [&_.cm-editor]:bg-transparent [&_.cm-gutters]:bg-transparent">
-        <CodeMirror
-          value={active.sql}
-          height="160px"
-          theme={resolvedTheme === "dark" ? "dark" : "light"}
-          extensions={extensions}
-          onChange={(value) => patch({ sql: value })}
-          placeholder="Write SQL, then press ⌘↵ to run"
-          basicSetup={{ foldGutter: false }}
-        />
-      </div>
-
-      <div className="min-h-0 flex-1 flex flex-col">
-        {active.loading ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-xs">
-            <Loader2 className="size-4 animate-spin" /> Running…
-          </div>
-        ) : active.result ? (
-          <>
-            <div className="min-h-0 flex-1">
-              <DataGrid
-                columns={active.result.columns}
-                visible={new Set(active.result.columns.map((c) => c.name))}
-                rows={active.result.rows}
-                selected={new Set()}
-                activeRow={null}
-                onToggleRow={() => {}}
-                onToggleAll={() => {}}
-                onRowClick={() => {}}
-                onCellCommit={() => {}}
-                editMode="side_panel"
-              />
-            </div>
-            <div className="text-muted-foreground border-t px-3 py-1 text-[11px]">
-              {active.result.row_count} row{active.result.row_count !== 1 ? "s" : ""}
-              {active.duration !== null && ` · ${active.duration}ms`}
-            </div>
-          </>
-        ) : (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-            {active.affected !== null
-              ? `${active.affected} row(s) affected${active.duration !== null ? ` · ${active.duration}ms` : ""}`
-              : "Results appear here."}
-          </div>
-        )}
-      </div>
+      {editorFullscreen ? (
+        <div className="min-h-0 flex-1">{editor}</div>
+      ) : (
+        <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+          <ResizablePanel defaultSize="30%" minSize="10%">
+            {editor}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize="70%" minSize="10%">
+            {results}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
     </div>
   )
 }
