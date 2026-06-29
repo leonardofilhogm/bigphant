@@ -1,0 +1,19 @@
+# Keep host (macOS) build artifacts out of the Linux build image.
+# Critically, node_modules holds platform-native binaries (e.g. rolldown's
+# darwin binding); copying them in makes the in-container `npm install` skip
+# and vite then fails to find the linux binding. Excluding them forces a
+# clean, correct Linux install.
+frontend/node_modules
+frontend/dist
+node_modules
+
+# Compiled binaries from prior host builds
+build/bin
+
+# Packaging output
+dist
+
+# VCS / local cruft
+.git
+.DS_Store
+**/.DS_Store

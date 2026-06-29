@@ -1,0 +1,31 @@
+# nfpm spec for the Bigphant Debian package.
+# https://nfpm.goreleaser.com/configuration/
+#
+# VERSION is supplied via the environment by build-deb.sh.
+name: bigphant
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: database
+priority: optional
+maintainer: Leonardo Gomes Filho <leonardofilhogm@gmail.com>
+description: |
+  Bigphant - native database client (MySQL/MariaDB, PostgreSQL, SQLite).
+homepage: https://github.com/leonardogm/bigphant
+license: proprietary
+
+# Runtime dependencies. These are the GTK/WebKit shared libs the Wails
+# app needs to launch. On Ubuntu 24.04 use libwebkit2gtk-4.1-0 instead.
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.0-37
+
+contents:
+  - src: ./build/bin/bigphant
+    dst: /usr/bin/bigphant
+    file_info:
+      mode: 0755
+  - src: ./build/linux/bigphant.desktop
+    dst: /usr/share/applications/bigphant.desktop
+  - src: ./build/appicon.png
+    dst: /usr/share/icons/hicolor/512x512/apps/bigphant.png
