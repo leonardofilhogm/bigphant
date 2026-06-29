@@ -124,6 +124,8 @@ export function SetActiveDatabase(arg1:string):Promise<void>;
 
 export function SetConnectionEditMode(arg1:string,arg2:string):Promise<connections.ConnectionMeta>;
 
+export function SetTheme(arg1:string):Promise<void>;
+
 export function ShouldInterceptClose():Promise<boolean>;
 
 export function TestConnection(arg1:connections.ConnectionInput):Promise<main.TestResult>;

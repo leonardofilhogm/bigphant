@@ -92,19 +92,8 @@ function App() {
   // Persist a theme chosen from the View ▸ Appearance menu so the native radio
   // reflects it on next launch (the visual switch is done by next-themes).
   const persistTheme = useCallback((theme: string) => {
-    setSettings((prev) => {
-      const next: AppSettings = {
-        ...(prev ?? {
-          allow_destructive_without_where: false,
-          default_transaction_mode: "auto_commit",
-          theme,
-          onboarding_completed: false,
-        }),
-        theme,
-      }
-      api.updateSettings(next).catch(() => {})
-      return next
-    })
+    setSettings((prev) => (prev ? { ...prev, theme } : prev))
+    api.setTheme(theme).catch(() => {})
   }, [])
 
   const completeOnboarding = useCallback(async () => {
@@ -175,7 +164,7 @@ function App() {
   }
 
   return (
-    <ThemeProvider>
+    <ThemeProvider defaultTheme={settings?.theme ?? "system"}>
       <AppMenuBridge
         onLogout={logout}
         onThemeChange={persistTheme}

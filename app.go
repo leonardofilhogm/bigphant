@@ -438,6 +438,26 @@ func (a *App) UpdateSettings(s settings.AppSettings) error {
 	return nil
 }
 
+// SetTheme persists only the appearance theme ("light" | "dark" | "system"),
+// leaving every other setting untouched. Driven by the in-app theme controls
+// (Settings dialog, topbar toggle) so their choice survives relaunch and the
+// native View ▸ Appearance radio stays in sync. The native menu path persists
+// the same field via UpdateSettings.
+func (a *App) SetTheme(theme string) error {
+	switch theme {
+	case "light", "dark", "system":
+	default:
+		return fmt.Errorf("invalid theme %q", theme)
+	}
+	a.settings.Theme = theme
+	if a.settingsStore != nil {
+		if err := a.settingsStore.Save(a.settings); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SetActiveDatabase switches the active database for the current connection
 // context. For Postgres this reconnects the pool to the new database.
 func (a *App) SetActiveDatabase(database string) error {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
-import { useTheme } from "next-themes"
 import { toast } from "sonner"
+
+import { useThemeSetting } from "@/lib/use-theme-setting"
 
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -43,7 +44,7 @@ export function Settings({
   onConnectionReadOnlyChange,
   onReplayWelcome,
 }: SettingsProps) {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme } = useThemeSetting()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -23,6 +23,7 @@ import {
   SetConnectionEditMode,
   SchemaColumns,
   SetActiveDatabase,
+  SetTheme,
   ServerFlavor,
   ServerVersion,
   TestConnection,
@@ -155,6 +156,7 @@ export const api = {
   serverFlavor: (): Promise<string> => ServerFlavor(),
   getSettings: (): Promise<AppSettings> => GetSettings(),
   updateSettings: (s: AppSettings): Promise<void> => UpdateSettings(s),
+  setTheme: (theme: string): Promise<void> => SetTheme(theme),
 
   getLicense: (): Promise<LicenseInfo> => GetLicense() as Promise<LicenseInfo>,
   licenseActivated: (): Promise<boolean> => LicenseActivated(),
